@@ -1,7 +1,8 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from ..websocket.manager import manager
-from ..auth.jwt_handler import verify_token
-from ..database.mongodb import DatabaseOperations
+from websocket.manager import manager
+from auth.jwt_handler import verify_token
+from database.mongodb import DatabaseOperations
+from datetime import datetime
 import logging
 import json
 
@@ -38,7 +39,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
         await DatabaseOperations.update_document(
             "users",
             {"id": user_id},
-            {"status": "online", "last_active": "datetime.utcnow()"}
+            {"status": "active", "last_active": datetime.utcnow()}
         )
         
         # Send initial data
@@ -59,7 +60,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str):
             if message.get("type") == "ping":
                 await manager.send_personal_message({
                     "type": "pong",
-                    "data": {"timestamp": "datetime.utcnow().isoformat()"}
+                    "data": {"timestamp": datetime.utcnow().isoformat()}
                 }, user_id)
             
             elif message.get("type") == "activity_update":

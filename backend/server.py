@@ -1,5 +1,6 @@
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import os
 import logging
@@ -7,10 +8,13 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 
 # Import database connection
-from .database.mongodb import connect_to_mongo, close_mongo_connection
+from database.mongodb import connect_to_mongo, close_mongo_connection
 
 # Import routes
-from .routes import auth, users, projects, time_tracking, analytics, integrations, websocket
+from routes import auth, users, projects, time_tracking, analytics, integrations, websocket
+
+# Import configuration
+from config import settings
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -48,7 +52,7 @@ api_router = APIRouter(prefix="/api")
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],  # Allow all origins temporarily for debugging
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -67,6 +71,12 @@ app.include_router(websocket.router)
 # Include the API router in the main app
 app.include_router(api_router)
 
+# Mount static files for uploads (if storage type is local)
+if settings.STORAGE_TYPE == "local":
+    uploads_path = settings.uploads_path
+    if uploads_path.exists():
+        app.mount("/uploads", StaticFiles(directory=str(uploads_path)), name="uploads")
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -74,6 +84,16 @@ async def health_check():
         "status": "healthy",
         "service": "Hubstaff Clone API",
         "version": "1.0.0"
+    }
+
+# API Health check endpoint
+@api_router.get("/health")
+async def api_health_check():
+    return {
+        "status": "healthy",
+        "service": "Hubstaff Clone API",
+        "version": "1.0.0",
+        "api_path": "/api"
     }
 
 # Root endpoint

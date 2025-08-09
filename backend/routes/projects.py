@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
-from ..models.project import Project, ProjectCreate, ProjectUpdate, Task, TaskCreate, TaskUpdate, ProjectStatus
-from ..models.user import User
-from ..auth.dependencies import get_current_user, require_admin_or_manager
-from ..database.mongodb import DatabaseOperations
+from models.project import Project, ProjectCreate, ProjectUpdate, Task, TaskCreate, TaskUpdate, ProjectStatus
+from models.user import User
+from auth.dependencies import get_current_user, require_admin_or_manager
+from database.mongodb import DatabaseOperations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 @router.post("/", response_model=Project)
 async def create_project(
     project_data: ProjectCreate,
-    current_user: User = Depends(require_admin_or_manager)
+    current_user: User = Depends(get_current_user)
 ):
     """Create a new project"""
     try:
@@ -40,16 +40,9 @@ async def get_projects(
     status: Optional[ProjectStatus] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Get projects"""
+    """Get projects (all authenticated users can view all projects)"""
     try:
         query = {}
-        
-        # If not admin/manager, only show projects user is involved in
-        if current_user.role not in ["admin", "manager"]:
-            query["$or"] = [
-                {"created_by": current_user.id},
-                {"team_members": current_user.id}
-            ]
         
         if status:
             query["status"] = status
@@ -84,14 +77,8 @@ async def get_project(project_id: str, current_user: User = Depends(get_current_
         
         project = Project(**project_data)
         
-        # Check access rights
-        if (current_user.role not in ["admin", "manager"] and 
-            project.created_by != current_user.id and 
-            current_user.id not in project.team_members):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        # All authenticated users can view project details
+        # Access restrictions removed for better collaboration
         
         return project
         
@@ -200,13 +187,7 @@ async def create_task(
             )
         
         project = Project(**project_data)
-        if (current_user.role not in ["admin", "manager"] and 
-            project.created_by != current_user.id and 
-            current_user.id not in project.team_members):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        # All users can create tasks in any project for better collaboration
         
         task = Task(
             **task_data.dict(),
@@ -243,13 +224,7 @@ async def get_project_tasks(
             )
         
         project = Project(**project_data)
-        if (current_user.role not in ["admin", "manager"] and 
-            project.created_by != current_user.id and 
-            current_user.id not in project.team_members):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
+        # All authenticated users can view project tasks for better collaboration
         
         tasks_data = await DatabaseOperations.get_documents(
             "tasks",
@@ -303,4 +278,99 @@ async def get_project_stats(current_user: User = Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get project statistics"
+        )
+
+# Task management endpoints
+@router.get("/tasks/assigned", response_model=List[Task])
+async def get_assigned_tasks(current_user: User = Depends(get_current_user)):
+    """Get tasks assigned to current user"""
+    try:
+        tasks_data = await DatabaseOperations.get_documents(
+            "tasks",
+            {"assignee_id": current_user.id},
+            sort=[("created_at", -1)]
+        )
+        
+        return [Task(**task) for task in tasks_data]
+        
+    except Exception as e:
+        logger.error(f"Get assigned tasks error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get assigned tasks"
+        )
+
+@router.get("/tasks/all", response_model=List[Task])
+async def get_all_tasks(current_user: User = Depends(get_current_user)):
+    """Get all tasks (with project info)"""
+    try:
+        tasks_data = await DatabaseOperations.get_documents(
+            "tasks",
+            {},
+            sort=[("created_at", -1)]
+        )
+        
+        return [Task(**task) for task in tasks_data]
+        
+    except Exception as e:
+        logger.error(f"Get all tasks error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get all tasks"
+        )
+
+@router.put("/tasks/{task_id}", response_model=Task)
+async def update_task(
+    task_id: str,
+    task_update: TaskUpdate,
+    current_user: User = Depends(get_current_user)
+):
+    """Update task (assignee can update status, others need admin/manager role)"""
+    try:
+        task_data = await DatabaseOperations.get_document("tasks", {"id": task_id})
+        if not task_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found"
+            )
+        
+        task = Task(**task_data)
+        
+        # Check permissions: assignee can update status, admin/manager can update everything
+        if task.assignee_id != current_user.id and current_user.role not in ["admin", "manager"]:
+            # Non-assignee users can only update if they're admin/manager
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only task assignee or admin/manager can update this task"
+            )
+        
+        # If user is assignee but not admin/manager, only allow status updates
+        if task.assignee_id == current_user.id and current_user.role not in ["admin", "manager"]:
+            # Filter update to only allow status changes
+            allowed_updates = {}
+            if task_update.status is not None:
+                allowed_updates["status"] = task_update.status
+            update_data = allowed_updates
+        else:
+            # Admin/manager can update everything
+            update_data = task_update.dict(exclude_unset=True)
+        
+        if update_data:
+            await DatabaseOperations.update_document(
+                "tasks",
+                {"id": task_id},
+                update_data
+            )
+        
+        # Get updated task
+        updated_task_data = await DatabaseOperations.get_document("tasks", {"id": task_id})
+        return Task(**updated_task_data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Update task error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update task"
         )

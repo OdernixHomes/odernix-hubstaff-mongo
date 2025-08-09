@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional
-from ..models.user import User, UserUpdate, UserResponse, UserRole
-from ..auth.dependencies import get_current_user, require_admin_or_manager
-from ..database.mongodb import DatabaseOperations
+from models.user import User, UserUpdate, UserResponse, UserRole
+from auth.dependencies import get_current_user, require_admin_or_manager
+from database.mongodb import DatabaseOperations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,9 +13,9 @@ async def get_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
     role: Optional[UserRole] = None,
-    current_user: User = Depends(require_admin_or_manager)
+    current_user: User = Depends(get_current_user)
 ):
-    """Get all users (admin/manager only)"""
+    """Get all users (all authenticated users can view team members)"""
     try:
         query = {}
         if role:

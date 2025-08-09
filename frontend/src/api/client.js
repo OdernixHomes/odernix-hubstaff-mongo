@@ -1,7 +1,11 @@
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001';
 const API_BASE = `${BACKEND_URL}/api`;
+
+// Debug logging
+console.log('Backend URL:', BACKEND_URL);
+console.log('API Base:', API_BASE);
 
 // Create axios instance
 const apiClient = axios.create({
@@ -29,7 +33,16 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
+      // Only redirect to login if it's not a login request failure
       localStorage.removeItem('hubstaff_token');
       localStorage.removeItem('hubstaff_user');
       window.location.href = '/login';
@@ -45,6 +58,10 @@ export const authAPI = {
   logout: () => apiClient.post('/auth/logout'),
   refreshToken: (refreshToken) => apiClient.post('/auth/refresh', { refresh_token: refreshToken }),
   getCurrentUser: () => apiClient.get('/auth/me'),
+  inviteUser: (inviteData) => apiClient.post('/auth/invite', inviteData),
+  acceptInvite: (acceptData) => apiClient.post('/auth/accept-invite', acceptData),
+  getInvitations: () => apiClient.get('/auth/invitations'),
+  getAllInvitations: () => apiClient.get('/auth/invitations/all'),
 };
 
 // Users API
@@ -67,6 +84,10 @@ export const projectsAPI = {
   getProjectTasks: (projectId) => apiClient.get(`/projects/${projectId}/tasks`),
   createTask: (projectId, taskData) => apiClient.post(`/projects/${projectId}/tasks`, taskData),
   getProjectStats: () => apiClient.get('/projects/stats/dashboard'),
+  // Task management
+  getAllTasks: () => apiClient.get('/projects/tasks/all'),
+  getAssignedTasks: () => apiClient.get('/projects/tasks/assigned'),
+  updateTask: (taskId, taskData) => apiClient.put(`/projects/tasks/${taskId}`, taskData),
 };
 
 // Time Tracking API
@@ -118,6 +139,22 @@ export const integrationsAPI = {
 // WebSocket API
 export const websocketAPI = {
   getOnlineUsers: () => apiClient.get('/online-users'),
+};
+
+// Health check API
+export const healthAPI = {
+  checkConnection: async () => {
+    try {
+      const response = await fetch(`${API_BASE}/health`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      return { success: response.ok, status: response.status };
+    } catch (error) {
+      console.error('Health check failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
 };
 
 export default apiClient;

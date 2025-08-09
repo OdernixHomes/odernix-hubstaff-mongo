@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .jwt_handler import verify_token
-from ..database.mongodb import DatabaseOperations
-from ..models.user import User
+from database.mongodb import DatabaseOperations
+from models.user import User
 from typing import Optional
 
 security = HTTPBearer()
@@ -24,6 +24,14 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Clean up invalid data
+    if user_data.get('status') == 'online':
+        user_data['status'] = 'active'
+    
+    # Fix invalid datetime strings
+    if user_data.get('last_active') == 'datetime.utcnow()':
+        user_data['last_active'] = None
     
     return User(**user_data)
 
@@ -61,5 +69,13 @@ async def get_optional_user(credentials: Optional[HTTPAuthorizationCredentials] 
     user_data = await DatabaseOperations.get_document("users", {"id": user_id})
     if not user_data:
         return None
+    
+    # Clean up invalid data
+    if user_data.get('status') == 'online':
+        user_data['status'] = 'active'
+    
+    # Fix invalid datetime strings
+    if user_data.get('last_active') == 'datetime.utcnow()':
+        user_data['last_active'] = None
     
     return User(**user_data)

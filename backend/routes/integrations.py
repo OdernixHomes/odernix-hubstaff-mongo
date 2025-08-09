@@ -2,9 +2,10 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from typing import List, Optional, Dict, Any
 import httpx
 import os
-from ..models.user import User
-from ..auth.dependencies import get_current_user, require_admin_or_manager
-from ..database.mongodb import DatabaseOperations
+from datetime import datetime
+from models.user import User
+from auth.dependencies import get_current_user, require_admin_or_manager
+from database.mongodb import DatabaseOperations
 import logging
 
 logger = logging.getLogger(__name__)
@@ -136,7 +137,7 @@ async def connect_slack(
             "type": "slack",
             "config": {"webhook_url": webhook_url},
             "active": True,
-            "created_at": "datetime.utcnow()"
+            "created_at": datetime.utcnow()
         }
         
         await DatabaseOperations.create_document("integrations", integration_data)
@@ -176,7 +177,7 @@ async def connect_trello(
             "type": "trello",
             "config": {"api_key": api_key, "token": token},
             "active": True,
-            "created_at": "datetime.utcnow()"
+            "created_at": datetime.utcnow()
         }
         
         await DatabaseOperations.create_document("integrations", integration_data)
@@ -218,7 +219,7 @@ async def connect_github(
             "type": "github",
             "config": {"token": token},
             "active": True,
-            "created_at": "datetime.utcnow()"
+            "created_at": datetime.utcnow()
         }
         
         await DatabaseOperations.create_document("integrations", integration_data)

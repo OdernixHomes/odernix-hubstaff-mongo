@@ -25,7 +25,7 @@ class Project(BaseModel):
     name: str
     description: Optional[str] = None
     client: str
-    budget: float
+    budget: float = 0.0
     spent: float = 0.0
     hours_tracked: float = 0.0
     status: ProjectStatus = ProjectStatus.ACTIVE
@@ -39,7 +39,7 @@ class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
     client: str
-    budget: float
+    budget: Optional[float] = 0.0
     deadline: Optional[datetime] = None
     team_members: Optional[List[str]] = []
 
@@ -70,7 +70,6 @@ class Task(BaseModel):
 class TaskCreate(BaseModel):
     title: str
     description: Optional[str] = None
-    project_id: str
     assignee_id: str
     priority: TaskPriority = TaskPriority.MEDIUM
     estimated_hours: Optional[float] = None

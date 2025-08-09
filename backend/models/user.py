@@ -63,3 +63,22 @@ class UserResponse(BaseModel):
     timezone: str
     created_at: datetime
     last_active: Optional[datetime] = None
+
+class InviteUser(BaseModel):
+    email: EmailStr
+    role: UserRole = UserRole.USER
+
+class Invitation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    role: UserRole
+    invited_by: str
+    token: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    accepted: bool = False
+
+class AcceptInvite(BaseModel):
+    token: str
+    name: str
+    password: str

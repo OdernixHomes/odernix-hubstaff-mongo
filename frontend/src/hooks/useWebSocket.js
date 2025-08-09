@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import io from 'socket.io-client';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
@@ -15,71 +14,74 @@ export const useWebSocket = (user) => {
     const token = localStorage.getItem('hubstaff_token');
     if (!token) return;
 
-    // Connect to WebSocket
-    const wsUrl = `${BACKEND_URL}/ws/${token}`;
-    socketRef.current = io(wsUrl, {
-      transports: ['websocket'],
-    });
+    // Connect to WebSocket - use ws:// protocol
+    const wsUrl = `${BACKEND_URL.replace('http', 'ws')}/ws/${token}`;
+    socketRef.current = new WebSocket(wsUrl);
 
-    socketRef.current.on('connect', () => {
+    socketRef.current.onopen = () => {
       setIsConnected(true);
       console.log('WebSocket connected');
-    });
+    };
 
-    socketRef.current.on('disconnect', () => {
+    socketRef.current.onclose = () => {
       setIsConnected(false);
       console.log('WebSocket disconnected');
-    });
+    };
 
-    socketRef.current.on('connection_established', (data) => {
-      setOnlineUsers(data.online_users || []);
-    });
-
-    socketRef.current.on('user_status_update', (data) => {
-      setOnlineUsers(prev => {
-        if (data.status === 'online') {
-          return [...prev.filter(id => id !== data.user_id), data.user_id];
-        } else {
-          return prev.filter(id => id !== data.user_id);
+    socketRef.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        switch (data.type) {
+          case 'connection_established':
+            setOnlineUsers(data.online_users || []);
+            break;
+          case 'user_status_update':
+            setOnlineUsers(prev => {
+              if (data.status === 'online') {
+                return [...prev.filter(id => id !== data.user_id), data.user_id];
+              } else {
+                return prev.filter(id => id !== data.user_id);
+              }
+            });
+            break;
+          case 'time_entry_update':
+            setNotifications(prev => [...prev, {
+              id: Date.now(),
+              type: 'time_entry',
+              message: `${data.user_id} updated time tracking`,
+              timestamp: new Date(),
+              data: data.time_entry
+            }]);
+            break;
+          case 'project_update':
+            setNotifications(prev => [...prev, {
+              id: Date.now(),
+              type: 'project',
+              message: `Project "${data.project.name}" was updated`,
+              timestamp: new Date(),
+              data: data.project
+            }]);
+            break;
+          case 'team_activity':
+            console.log('Team activity update:', data);
+            break;
         }
-      });
-    });
-
-    socketRef.current.on('time_entry_update', (data) => {
-      setNotifications(prev => [...prev, {
-        id: Date.now(),
-        type: 'time_entry',
-        message: `${data.user_id} updated time tracking`,
-        timestamp: new Date(),
-        data: data.time_entry
-      }]);
-    });
-
-    socketRef.current.on('project_update', (data) => {
-      setNotifications(prev => [...prev, {
-        id: Date.now(),
-        type: 'project',
-        message: `Project "${data.project.name}" was updated`,
-        timestamp: new Date(),
-        data: data.project
-      }]);
-    });
-
-    socketRef.current.on('team_activity', (data) => {
-      // Handle team activity updates
-      console.log('Team activity update:', data);
-    });
+      } catch (error) {
+        console.error('WebSocket message parse error:', error);
+      }
+    };
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.disconnect();
+        socketRef.current.close();
       }
     };
   }, [user]);
 
   const sendMessage = (type, data) => {
     if (socketRef.current && isConnected) {
-      socketRef.current.emit('message', { type, data });
+      socketRef.current.send(JSON.stringify({ type, data }));
     }
   };
 

@@ -1,0 +1,8 @@
+INFO:     Started server process [14712]
+INFO:     Waiting for application startup.
+2025-07-25 03:05:06,746 - database.mongodb - INFO - Connected to MongoDB successfully
+2025-07-25 03:05:06,814 - database.mongodb - INFO - Database indexes created successfully
+2025-07-25 03:05:06,814 - server - INFO - Hubstaff Clone API started successfully
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59906 - "GET /health HTTP/1.1" 200 OK

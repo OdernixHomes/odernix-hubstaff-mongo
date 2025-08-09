@@ -1,10 +1,11 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query, UploadFile, File
 from typing import List, Optional
 from datetime import datetime, timedelta, date
-from ..models.time_tracking import TimeEntry, TimeEntryCreate, TimeEntryUpdate, TimeEntryManual, ActivityData, Screenshot
-from ..models.user import User
-from ..auth.dependencies import get_current_user, require_admin_or_manager
-from ..database.mongodb import DatabaseOperations
+from models.time_tracking import TimeEntry, TimeEntryCreate, TimeEntryUpdate, TimeEntryManual, ActivityData, Screenshot
+from models.user import User
+from auth.dependencies import get_current_user, require_admin_or_manager
+from database.mongodb import DatabaseOperations
+from services.storage import storage_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -331,9 +332,12 @@ async def upload_screenshot(
                 detail="Time entry not found"
             )
         
-        # In a real implementation, you would save the file to cloud storage
-        # For now, we'll just create a mock URL
-        screenshot_url = f"/screenshots/{current_user.id}/{time_entry_id}/{file.filename}"
+        # Save screenshot using storage service
+        screenshot_url = await storage_service.save_file(
+            file=file,
+            subfolder="screenshots",
+            user_id=current_user.id
+        )
         
         screenshot = Screenshot(
             user_id=current_user.id,

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timedelta, date
-from ..models.user import User
-from ..auth.dependencies import get_current_user, require_admin_or_manager
-from ..database.mongodb import DatabaseOperations
+from models.user import User
+from auth.dependencies import get_current_user, require_admin_or_manager
+from database.mongodb import DatabaseOperations
 import logging
 
 logger = logging.getLogger(__name__)
