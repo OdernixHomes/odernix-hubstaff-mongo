@@ -18,11 +18,11 @@ async def create_project(
     """Create a new project"""
     try:
         project = Project(
-            **project_data.dict(),
+            **project_data.model_dump(),
             created_by=current_user.id
         )
         
-        await DatabaseOperations.create_document("projects", project.dict())
+        await DatabaseOperations.create_document("projects", project.model_dump())
         
         return project
         
@@ -190,12 +190,12 @@ async def create_task(
         # All users can create tasks in any project for better collaboration
         
         task = Task(
-            **task_data.dict(),
+            **task_data.model_dump(),
             project_id=project_id,
             created_by=current_user.id
         )
         
-        await DatabaseOperations.create_document("tasks", task.dict())
+        await DatabaseOperations.create_document("tasks", task.model_dump())
         
         return task
         

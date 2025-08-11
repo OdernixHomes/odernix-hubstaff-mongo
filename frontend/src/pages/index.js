@@ -9,3 +9,5 @@ export { ReportsPage } from './ReportsPage';
 export { IntegrationsPage } from './IntegrationsPage';
 export { SettingsPage } from './SettingsPage';
 export { AcceptInvitePage } from './AcceptInvitePage';
+export { ForgotPasswordPage } from './ForgotPasswordPage';
+export { ResetPasswordPage } from './ResetPasswordPage';

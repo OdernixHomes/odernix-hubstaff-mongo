@@ -12,6 +12,15 @@ export const DashboardPage = ({ user, onLogout }) => {
     recentProjects: []
   });
   const [loading, setLoading] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
 
   useEffect(() => {
     fetchDashboardData();
@@ -51,9 +60,19 @@ export const DashboardPage = ({ user, onLogout }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-        <Header user={user} onLogout={onLogout} currentPage="Dashboard" />
+        <Header 
+          user={user} 
+          onLogout={onLogout} 
+          currentPage="Dashboard" 
+          onToggleMobileSidebar={toggleMobileSidebar}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+        />
         <div className="flex">
-          <Sidebar currentPage="Dashboard" />
+          <Sidebar 
+            currentPage="Dashboard" 
+            isMobileOpen={isMobileSidebarOpen}
+            onCloseMobile={closeMobileSidebar}
+          />
           <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">
@@ -71,9 +90,19 @@ export const DashboardPage = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <Header user={user} onLogout={onLogout} currentPage="Dashboard" />
+      <Header 
+        user={user} 
+        onLogout={onLogout} 
+        currentPage="Dashboard" 
+        onToggleMobileSidebar={toggleMobileSidebar}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+      />
       <div className="flex">
-        <Sidebar currentPage="Dashboard" />
+        <Sidebar 
+          currentPage="Dashboard" 
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+        />
         
         <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

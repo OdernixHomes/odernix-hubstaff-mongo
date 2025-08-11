@@ -16,6 +16,8 @@ class Settings:
     
     # Frontend URL settings
     FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "")
     
     # File storage settings
     STORAGE_TYPE: str = os.getenv("STORAGE_TYPE", "local")  # local, aws_s3, gcp, azure

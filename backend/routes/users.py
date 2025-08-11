@@ -41,7 +41,7 @@ async def get_users(
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     """Get current user profile"""
-    return UserResponse(**current_user.dict())
+    return UserResponse(**current_user.model_dump())
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: str, current_user: User = Depends(get_current_user)):

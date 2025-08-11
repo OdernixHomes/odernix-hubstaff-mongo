@@ -55,7 +55,7 @@ async def start_time_tracking(
             description=entry_data.description
         )
         
-        await DatabaseOperations.create_document("time_entries", time_entry.dict())
+        await DatabaseOperations.create_document("time_entries", time_entry.model_dump())
         
         # Update user status to active
         await DatabaseOperations.update_document(
@@ -82,56 +82,319 @@ async def stop_time_tracking(
 ):
     """Stop time tracking"""
     try:
+        logger.info(f"Stopping time tracking for entry {entry_id} by user {current_user.id}")
+        
+        if not entry_id or not entry_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid entry ID provided"
+            )
+        
         entry_data = await DatabaseOperations.get_document(
             "time_entries",
             {"id": entry_id, "user_id": current_user.id}
         )
         
         if not entry_data:
+            logger.warning(f"Time entry {entry_id} not found for user {current_user.id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Time entry not found"
             )
         
         if entry_data.get("end_time"):
+            logger.warning(f"Time entry {entry_id} is already stopped")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Time entry already stopped"
             )
         
         end_time = datetime.utcnow()
-        start_time = entry_data["start_time"]
-        duration = int((end_time - start_time).total_seconds())
+        start_time = entry_data.get("start_time")
+        
+        if not start_time:
+            logger.error(f"Time entry {entry_id} has no start time")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time entry: no start time found"
+            )
+        
+        # Convert start_time if it's a string
+        if isinstance(start_time, str):
+            try:
+                start_time = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+            except ValueError:
+                logger.error(f"Invalid start_time format for entry {entry_id}: {start_time}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid start time format"
+                )
+        
+        # Calculate raw duration
+        raw_duration = int((end_time - start_time).total_seconds())
+        
+        if raw_duration < 0:
+            logger.error(f"Negative duration calculated for entry {entry_id}: {raw_duration}")
+            raw_duration = 0
+        
+        # Get total pause duration
+        total_pause_duration = entry_data.get("total_pause_duration", 0)
+        
+        # If currently paused, add the current pause period to total
+        if entry_data.get("is_paused"):
+            pause_periods = entry_data.get("pause_periods", [])
+            if pause_periods and pause_periods[-1].get("resume_time") is None:
+                last_pause_start = pause_periods[-1]["pause_time"]
+                if isinstance(last_pause_start, str):
+                    last_pause_start = datetime.fromisoformat(last_pause_start.replace('Z', '+00:00'))
+                current_pause_duration = int((end_time - last_pause_start).total_seconds())
+                total_pause_duration += current_pause_duration
+        
+        # Final duration = raw duration - total pause time
+        duration = max(0, raw_duration - total_pause_duration)
+        
+        logger.info(f"Duration calculation: raw={raw_duration}s, pause={total_pause_duration}s, final={duration}s")
         
         update_data = {
             "end_time": end_time,
             "duration": duration
         }
         
-        await DatabaseOperations.update_document(
+        logger.info(f"Updating time entry {entry_id} with duration {duration} seconds")
+        
+        success = await DatabaseOperations.update_document(
             "time_entries",
             {"id": entry_id},
             update_data
         )
         
-        # Update project hours
-        await DatabaseOperations.update_document(
-            "projects",
-            {"id": entry_data["project_id"]},
-            {"$inc": {"hours_tracked": duration / 3600}}
-        )
+        if not success:
+            logger.error(f"Failed to update time entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update time entry"
+            )
+        
+        # Update project hours safely
+        project_id = entry_data.get("project_id")
+        if project_id and duration > 0:
+            try:
+                await DatabaseOperations.update_document(
+                    "projects",
+                    {"id": project_id},
+                    {"$inc": {"hours_tracked": duration / 3600}}
+                )
+                logger.info(f"Updated project {project_id} with {duration/3600} hours")
+            except Exception as project_error:
+                logger.error(f"Failed to update project hours: {project_error}")
+                # Don't fail the whole operation if project update fails
         
         # Get updated entry
         updated_entry = await DatabaseOperations.get_document("time_entries", {"id": entry_id})
+        if not updated_entry:
+            logger.error(f"Failed to retrieve updated entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve updated time entry"
+            )
+        
+        logger.info(f"Successfully stopped time tracking for entry {entry_id}")
         return TimeEntry(**updated_entry)
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Stop time tracking error: {e}")
+        logger.error(f"Stop time tracking error for entry {entry_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to stop time tracking"
+        )
+
+@router.post("/pause/{entry_id}", response_model=TimeEntry)
+async def pause_time_tracking(
+    entry_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Pause time tracking"""
+    try:
+        logger.info(f"Pausing time tracking for entry {entry_id} by user {current_user.id}")
+        
+        if not entry_id or not entry_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid entry ID provided"
+            )
+        
+        entry_data = await DatabaseOperations.get_document(
+            "time_entries",
+            {"id": entry_id, "user_id": current_user.id}
+        )
+        
+        if not entry_data:
+            logger.warning(f"Time entry {entry_id} not found for user {current_user.id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Time entry not found"
+            )
+        
+        if entry_data.get("end_time"):
+            logger.warning(f"Time entry {entry_id} is already stopped")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot pause a stopped time entry"
+            )
+        
+        if entry_data.get("is_paused"):
+            logger.warning(f"Time entry {entry_id} is already paused")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Time entry is already paused"
+            )
+        
+        pause_time = datetime.utcnow()
+        pause_periods = entry_data.get("pause_periods", [])
+        pause_periods.append({"pause_time": pause_time, "resume_time": None})
+        
+        update_data = {
+            "is_paused": True,
+            "pause_periods": pause_periods
+        }
+        
+        success = await DatabaseOperations.update_document(
+            "time_entries",
+            {"id": entry_id},
+            update_data
+        )
+        
+        if not success:
+            logger.error(f"Failed to pause time entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to pause time entry"
+            )
+        
+        # Get updated entry
+        updated_entry = await DatabaseOperations.get_document("time_entries", {"id": entry_id})
+        if not updated_entry:
+            logger.error(f"Failed to retrieve updated entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve updated time entry"
+            )
+        
+        logger.info(f"Successfully paused time tracking for entry {entry_id}")
+        return TimeEntry(**updated_entry)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Pause time tracking error for entry {entry_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to pause time tracking"
+        )
+
+@router.post("/resume/{entry_id}", response_model=TimeEntry)
+async def resume_time_tracking(
+    entry_id: str,
+    current_user: User = Depends(get_current_user)
+):
+    """Resume time tracking"""
+    try:
+        logger.info(f"Resuming time tracking for entry {entry_id} by user {current_user.id}")
+        
+        if not entry_id or not entry_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid entry ID provided"
+            )
+        
+        entry_data = await DatabaseOperations.get_document(
+            "time_entries",
+            {"id": entry_id, "user_id": current_user.id}
+        )
+        
+        if not entry_data:
+            logger.warning(f"Time entry {entry_id} not found for user {current_user.id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Time entry not found"
+            )
+        
+        if entry_data.get("end_time"):
+            logger.warning(f"Time entry {entry_id} is already stopped")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot resume a stopped time entry"
+            )
+        
+        if not entry_data.get("is_paused"):
+            logger.warning(f"Time entry {entry_id} is not paused")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Time entry is not paused"
+            )
+        
+        resume_time = datetime.utcnow()
+        pause_periods = entry_data.get("pause_periods", [])
+        
+        # Update the last pause period with resume time
+        if pause_periods and pause_periods[-1].get("resume_time") is None:
+            pause_periods[-1]["resume_time"] = resume_time
+        
+        # Calculate total pause duration
+        total_pause_duration = 0
+        for period in pause_periods:
+            if period.get("pause_time") and period.get("resume_time"):
+                pause_start = period["pause_time"]
+                pause_end = period["resume_time"]
+                
+                # Convert to datetime if they're strings
+                if isinstance(pause_start, str):
+                    pause_start = datetime.fromisoformat(pause_start.replace('Z', '+00:00'))
+                if isinstance(pause_end, str):
+                    pause_end = datetime.fromisoformat(pause_end.replace('Z', '+00:00'))
+                
+                total_pause_duration += int((pause_end - pause_start).total_seconds())
+        
+        update_data = {
+            "is_paused": False,
+            "pause_periods": pause_periods,
+            "total_pause_duration": total_pause_duration
+        }
+        
+        success = await DatabaseOperations.update_document(
+            "time_entries",
+            {"id": entry_id},
+            update_data
+        )
+        
+        if not success:
+            logger.error(f"Failed to resume time entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resume time entry"
+            )
+        
+        # Get updated entry
+        updated_entry = await DatabaseOperations.get_document("time_entries", {"id": entry_id})
+        if not updated_entry:
+            logger.error(f"Failed to retrieve updated entry {entry_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve updated time entry"
+            )
+        
+        logger.info(f"Successfully resumed time tracking for entry {entry_id}")
+        return TimeEntry(**updated_entry)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Resume time tracking error for entry {entry_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to resume time tracking"
         )
 
 @router.get("/active", response_model=Optional[TimeEntry])
@@ -231,7 +494,7 @@ async def create_manual_time_entry(
             is_manual=True
         )
         
-        await DatabaseOperations.create_document("time_entries", time_entry.dict())
+        await DatabaseOperations.create_document("time_entries", time_entry.model_dump())
         
         # Update project hours
         await DatabaseOperations.update_document(
@@ -270,7 +533,7 @@ async def update_time_entry(
                 detail="Time entry not found"
             )
         
-        update_data = entry_update.dict(exclude_unset=True)
+        update_data = entry_update.model_dump(exclude_unset=True)
         
         if update_data:
             await DatabaseOperations.update_document(
@@ -301,7 +564,7 @@ async def record_activity(
     try:
         activity.user_id = current_user.id
         
-        await DatabaseOperations.create_document("activity_data", activity.dict())
+        await DatabaseOperations.create_document("activity_data", activity.model_dump())
         
         return activity
         
@@ -345,7 +608,7 @@ async def upload_screenshot(
             url=screenshot_url
         )
         
-        await DatabaseOperations.create_document("screenshots", screenshot.dict())
+        await DatabaseOperations.create_document("screenshots", screenshot.model_dump())
         
         # Add screenshot to time entry
         await DatabaseOperations.update_document(
@@ -375,6 +638,8 @@ async def get_daily_report(
         if not date:
             date = datetime.utcnow().date()
         
+        logger.info(f"Getting daily report for user {current_user.id} on date {date}")
+        
         start_datetime = datetime.combine(date, datetime.min.time())
         end_datetime = datetime.combine(date, datetime.max.time())
         
@@ -387,31 +652,59 @@ async def get_daily_report(
             }
         )
         
-        total_hours = sum(entry.get("duration", 0) for entry in entries_data) / 3600
+        logger.info(f"Found {len(entries_data)} entries for the day")
+        
+        # Calculate total hours safely
+        total_duration = 0
+        for entry in entries_data:
+            duration = entry.get("duration", 0)
+            if isinstance(duration, (int, float)) and duration > 0:
+                total_duration += duration
+        
+        total_hours = total_duration / 3600 if total_duration > 0 else 0
         
         # Group by project
         projects = {}
         for entry in entries_data:
-            project_id = entry["project_id"]
-            if project_id not in projects:
-                project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
-                projects[project_id] = {
-                    "project_name": project_data["name"] if project_data else "Unknown",
-                    "hours": 0,
-                    "entries": 0
-                }
-            projects[project_id]["hours"] += entry.get("duration", 0) / 3600
-            projects[project_id]["entries"] += 1
+            try:
+                project_id = entry.get("project_id")
+                if not project_id:
+                    continue
+                    
+                if project_id not in projects:
+                    project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+                    projects[project_id] = {
+                        "project_name": project_data.get("name", "Unknown") if project_data else "Unknown",
+                        "hours": 0,
+                        "entries": 0
+                    }
+                
+                entry_duration = entry.get("duration", 0)
+                if isinstance(entry_duration, (int, float)) and entry_duration > 0:
+                    projects[project_id]["hours"] += entry_duration / 3600
+                projects[project_id]["entries"] += 1
+            except Exception as project_error:
+                logger.error(f"Error processing project data for entry {entry.get('id', 'unknown')}: {project_error}")
+                continue
         
-        return {
-            "date": date,
-            "total_hours": total_hours,
+        # Calculate activity level and screenshots count (placeholder values for now)
+        activity_level = min(100, max(0, total_hours * 10)) if total_hours > 0 else 0
+        screenshots_count = len(entries_data) * 3  # Placeholder calculation
+        
+        response_data = {
+            "date": date.isoformat(),
+            "total_hours": round(total_hours, 2),
             "projects": projects,
-            "entries_count": len(entries_data)
+            "entries_count": len(entries_data),
+            "activity_level": round(activity_level, 1),
+            "screenshots_count": screenshots_count
         }
         
+        logger.info(f"Daily report generated successfully: {response_data}")
+        return response_data
+        
     except Exception as e:
-        logger.error(f"Get daily report error: {e}")
+        logger.error(f"Get daily report error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get daily report"

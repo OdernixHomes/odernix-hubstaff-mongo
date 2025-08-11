@@ -19,6 +19,15 @@ export const TeamManagementPage = ({ user, onLogout }) => {
   });
   const [allInvitations, setAllInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
 
   useEffect(() => {
     fetchTeamData();
@@ -122,9 +131,19 @@ export const TeamManagementPage = ({ user, onLogout }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-fuchsia-50">
-        <Header user={user} onLogout={onLogout} currentPage="Team" />
+        <Header 
+        user={user} 
+        onLogout={onLogout} 
+        currentPage="Team" 
+        onToggleMobileSidebar={toggleMobileSidebar}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+      />
         <div className="flex">
-          <Sidebar currentPage="Team" />
+          <Sidebar 
+          currentPage="Team" 
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+        />
           <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">
@@ -142,9 +161,19 @@ export const TeamManagementPage = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50 to-fuchsia-50">
-      <Header user={user} onLogout={onLogout} currentPage="Team" />
+      <Header 
+        user={user} 
+        onLogout={onLogout} 
+        currentPage="Team" 
+        onToggleMobileSidebar={toggleMobileSidebar}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+      />
       <div className="flex">
-        <Sidebar currentPage="Team" />
+        <Sidebar 
+          currentPage="Team" 
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+        />
         
         <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

@@ -12,7 +12,9 @@ import {
   LoginPage,
   SignupPage,
   IntegrationsPage,
-  AcceptInvitePage 
+  AcceptInvitePage,
+  ForgotPasswordPage,
+  ResetPasswordPage
 } from "./pages";
 import { authAPI } from "./api/client";
 
@@ -84,6 +86,8 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
           <Route path="/signup" element={<SignupPage onLogin={handleLogin} />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/accept-invite" element={<AcceptInvitePage onLogin={handleLogin} />} />
           
           {/* Protected Routes */}

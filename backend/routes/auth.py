@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import HTTPBearer
 from datetime import timedelta, datetime
-from models.user import UserCreate, UserLogin, UserResponse, User, InviteUser, Invitation, AcceptInvite
+from models.user import UserCreate, UserLogin, UserResponse, User, InviteUser, Invitation, AcceptInvite, ForgotPassword, ResetPassword, PasswordResetToken
 from auth.jwt_handler import create_access_token, create_refresh_token, hash_password, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES
 from auth.dependencies import get_current_user
 from database.mongodb import DatabaseOperations
@@ -43,7 +43,7 @@ async def register(user_data: UserCreate):
             role=user_data.role
         )
         
-        user_dict = user.dict()
+        user_dict = user.model_dump()
         user_dict["password"] = hashed_password
         
         await DatabaseOperations.create_document("users", user_dict)
@@ -59,7 +59,7 @@ async def register(user_data: UserCreate):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": UserResponse(**user.dict())
+            "user": UserResponse(**user.model_dump())
         }
         
     except HTTPException:
@@ -103,7 +103,7 @@ async def login(user_credentials: UserLogin):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": UserResponse(**user.dict())
+            "user": UserResponse(**user.model_dump())
         }
         
     except HTTPException:
@@ -138,7 +138,7 @@ async def logout(current_user: User = Depends(get_current_user)):
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
     """Get current user information"""
-    return UserResponse(**current_user.dict())
+    return UserResponse(**current_user.model_dump())
 
 @router.post("/refresh", response_model=dict)
 async def refresh_token(refresh_token: str):
@@ -208,7 +208,7 @@ async def invite_user(invite_data: InviteUser, current_user: User = Depends(get_
             expires_at=datetime.utcnow() + timedelta(days=settings.INVITATION_EXPIRE_DAYS)
         )
         
-        await DatabaseOperations.create_document("invitations", invitation.dict())
+        await DatabaseOperations.create_document("invitations", invitation.model_dump())
         
         # Generate invitation link
         invite_link = f"{settings.invite_base_url}?token={invitation.token}"
@@ -283,7 +283,7 @@ async def accept_invitation(accept_data: AcceptInvite):
             role=invitation.role
         )
         
-        user_dict = user.dict()
+        user_dict = user.model_dump()
         user_dict["password"] = hashed_password
         
         await DatabaseOperations.create_document("users", user_dict)
@@ -306,7 +306,7 @@ async def accept_invitation(accept_data: AcceptInvite):
             "access_token": access_token,
             "refresh_token": refresh_token,
             "token_type": "bearer",
-            "user": UserResponse(**user.dict())
+            "user": UserResponse(**user.model_dump())
         }
         
     except HTTPException:
@@ -429,4 +429,118 @@ async def get_invite_link(invitation_id: str, current_user: User = Depends(get_c
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get invite link"
+        )
+
+@router.post("/forgot-password", response_model=dict)
+async def forgot_password(forgot_data: ForgotPassword):
+    """Send password reset email"""
+    try:
+        # Check if user exists
+        user_data = await DatabaseOperations.get_document("users", {"email": forgot_data.email})
+        if not user_data:
+            # For security, don't reveal if email exists or not
+            return {
+                "message": "If an account with this email exists, you will receive a password reset link."
+            }
+        
+        user = User(**{k: v for k, v in user_data.items() if k != "password"})
+        
+        # Check for existing unused reset tokens and mark them as used
+        await DatabaseOperations.update_documents(
+            "password_reset_tokens",
+            {"email": forgot_data.email, "used": False},
+            {"used": True}
+        )
+        
+        # Create password reset token
+        reset_token = PasswordResetToken(
+            email=forgot_data.email,
+            expires_at=datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+        )
+        
+        await DatabaseOperations.create_document("password_reset_tokens", reset_token.model_dump())
+        
+        # Generate reset link
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token.token}"
+        
+        # Send password reset email
+        email_sent = await email_service.send_password_reset_email(
+            to_email=forgot_data.email,
+            user_name=user.name,
+            reset_link=reset_link
+        )
+        
+        return {
+            "message": "If an account with this email exists, you will receive a password reset link.",
+            "email_sent": email_sent
+        }
+        
+    except Exception as e:
+        logger.error(f"Forgot password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to process password reset request"
+        )
+
+@router.post("/reset-password", response_model=dict)
+async def reset_password(reset_data: ResetPassword):
+    """Reset password using token"""
+    try:
+        # Find password reset token
+        token_data = await DatabaseOperations.get_document(
+            "password_reset_tokens", 
+            {"token": reset_data.token, "used": False}
+        )
+        
+        if not token_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+        
+        reset_token = PasswordResetToken(**token_data)
+        
+        # Check if token is expired
+        if datetime.utcnow() > reset_token.expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Reset token has expired"
+            )
+        
+        # Find user
+        user_data = await DatabaseOperations.get_document("users", {"email": reset_token.email})
+        if not user_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User not found"
+            )
+        
+        # Hash new password
+        hashed_password = hash_password(reset_data.new_password)
+        
+        # Update user password
+        await DatabaseOperations.update_document(
+            "users",
+            {"email": reset_token.email},
+            {"password": hashed_password}
+        )
+        
+        # Mark token as used
+        await DatabaseOperations.update_document(
+            "password_reset_tokens",
+            {"token": reset_data.token},
+            {"used": True}
+        )
+        
+        return {
+            "message": "Password has been reset successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to reset password"
         )

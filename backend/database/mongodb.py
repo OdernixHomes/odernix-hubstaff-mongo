@@ -68,6 +68,11 @@ async def create_indexes():
         await db.database.screenshots.create_index("time_entry_id")
         await db.database.screenshots.create_index("timestamp")
         
+        # Password reset token indexes
+        await db.database.password_reset_tokens.create_index("email")
+        await db.database.password_reset_tokens.create_index("token", unique=True)
+        await db.database.password_reset_tokens.create_index("expires_at")
+        
         logger.info("Database indexes created successfully")
         
     except Exception as e:
@@ -116,9 +121,31 @@ class DatabaseOperations:
     async def update_document(collection: str, query: Dict[str, Any], 
                             update: Dict[str, Any]) -> bool:
         """Update a document in the collection"""
-        update["updated_at"] = datetime.utcnow()
-        result = await db.database[collection].update_one(query, {"$set": update})
+        # Check if update contains MongoDB operators
+        has_operators = any(key.startswith('$') for key in update.keys())
+        
+        if has_operators:
+            # If update contains operators, use it directly
+            # Add updated_at to $set if it exists, otherwise create it
+            if "$set" in update:
+                update["$set"]["updated_at"] = datetime.utcnow()
+            else:
+                update["$set"] = {"updated_at": datetime.utcnow()}
+            result = await db.database[collection].update_one(query, update)
+        else:
+            # Traditional update with $set
+            update["updated_at"] = datetime.utcnow()
+            result = await db.database[collection].update_one(query, {"$set": update})
+        
         return result.modified_count > 0
+    
+    @staticmethod
+    async def update_documents(collection: str, query: Dict[str, Any], 
+                             update: Dict[str, Any]) -> int:
+        """Update multiple documents in the collection"""
+        update["updated_at"] = datetime.utcnow()
+        result = await db.database[collection].update_many(query, {"$set": update})
+        return result.modified_count
     
     @staticmethod
     async def delete_document(collection: str, query: Dict[str, Any]) -> bool:

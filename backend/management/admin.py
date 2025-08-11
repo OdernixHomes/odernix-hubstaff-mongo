@@ -72,7 +72,7 @@ class AdminManager:
                 status="active"
             )
             
-            user_dict = admin_user.dict()
+            user_dict = admin_user.model_dump()
             user_dict["password"] = hash_password(password)
             
             await DatabaseOperations.create_document("users", user_dict)

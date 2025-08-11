@@ -14,6 +14,15 @@ export const SettingsPage = ({ user, onLogout }) => {
   });
   const [userProfile, setUserProfile] = useState(user);
   const [loading, setLoading] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
 
   useEffect(() => {
     // Initialize settings from user data
@@ -51,9 +60,19 @@ export const SettingsPage = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} onLogout={onLogout} currentPage="Settings" />
+      <Header 
+        user={user} 
+        onLogout={onLogout} 
+        currentPage="Settings" 
+        onToggleMobileSidebar={toggleMobileSidebar}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+      />
       <div className="flex">
-        <Sidebar currentPage="Settings" />
+        <Sidebar 
+          currentPage="Settings" 
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+        />
         
         <main className="flex-1 ml-64 p-8">
           <div className="max-w-4xl mx-auto">

@@ -11,6 +11,15 @@ export const ProjectsPage = ({ user, onLogout }) => {
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
   const [newProject, setNewProject] = useState({
     name: "",
     client: "",
@@ -199,9 +208,19 @@ export const ProjectsPage = ({ user, onLogout }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-        <Header user={user} onLogout={onLogout} currentPage="Projects" />
+        <Header 
+          user={user} 
+          onLogout={onLogout} 
+          currentPage="Projects" 
+          onToggleMobileSidebar={toggleMobileSidebar}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+        />
         <div className="flex">
-          <Sidebar currentPage="Projects" />
+          <Sidebar 
+            currentPage="Projects" 
+            isMobileOpen={isMobileSidebarOpen}
+            onCloseMobile={closeMobileSidebar}
+          />
           <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">
@@ -219,9 +238,19 @@ export const ProjectsPage = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-      <Header user={user} onLogout={onLogout} currentPage="Projects" />
+      <Header 
+        user={user} 
+        onLogout={onLogout} 
+        currentPage="Projects" 
+        onToggleMobileSidebar={toggleMobileSidebar}
+        isMobileSidebarOpen={isMobileSidebarOpen}
+      />
       <div className="flex">
-        <Sidebar currentPage="Projects" />
+        <Sidebar 
+          currentPage="Projects" 
+          isMobileOpen={isMobileSidebarOpen}
+          onCloseMobile={closeMobileSidebar}
+        />
         
         <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">

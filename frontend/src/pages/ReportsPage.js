@@ -11,6 +11,15 @@ export const ReportsPage = ({ user, onLogout }) => {
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [analyticsData, setAnalyticsData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  };
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false);
+  };
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -39,9 +48,19 @@ export const ReportsPage = ({ user, onLogout }) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50">
-        <Header user={user} onLogout={onLogout} currentPage="Reports" />
+        <Header 
+          user={user} 
+          onLogout={onLogout} 
+          currentPage="Reports" 
+          onToggleMobileSidebar={toggleMobileSidebar}
+          isMobileSidebarOpen={isMobileSidebarOpen}
+        />
         <div className="flex">
-          <Sidebar currentPage="Reports" />
+          <Sidebar 
+            currentPage="Reports" 
+            isMobileOpen={isMobileSidebarOpen}
+            onCloseMobile={closeMobileSidebar}
+          />
           <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">

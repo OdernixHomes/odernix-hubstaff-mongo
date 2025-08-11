@@ -13,6 +13,9 @@ class TimeEntry(BaseModel):
     duration: Optional[int] = None  # in seconds
     description: Optional[str] = None
     is_manual: bool = False
+    is_paused: bool = False
+    pause_periods: List[dict] = []  # List of pause periods: [{"pause_time": datetime, "resume_time": datetime}]
+    total_pause_duration: int = 0  # Total pause time in seconds
     activity_level: Optional[float] = None  # 0-100
     screenshots: List[str] = []  # List of screenshot URLs
     apps_used: List[dict] = []  # App usage data

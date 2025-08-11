@@ -62,6 +62,8 @@ export const authAPI = {
   acceptInvite: (acceptData) => apiClient.post('/auth/accept-invite', acceptData),
   getInvitations: () => apiClient.get('/auth/invitations'),
   getAllInvitations: () => apiClient.get('/auth/invitations/all'),
+  forgotPassword: (forgotData) => apiClient.post('/auth/forgot-password', forgotData),
+  resetPassword: (resetData) => apiClient.post('/auth/reset-password', resetData),
 };
 
 // Users API
@@ -94,6 +96,8 @@ export const projectsAPI = {
 export const timeTrackingAPI = {
   startTracking: (data) => apiClient.post('/time-tracking/start', data),
   stopTracking: (entryId) => apiClient.post(`/time-tracking/stop/${entryId}`),
+  pauseTracking: (entryId) => apiClient.post(`/time-tracking/pause/${entryId}`),
+  resumeTracking: (entryId) => apiClient.post(`/time-tracking/resume/${entryId}`),
   getActiveEntry: () => apiClient.get('/time-tracking/active'),
   getTimeEntries: (params = {}) => apiClient.get('/time-tracking/entries', { params }),
   createManualEntry: (data) => apiClient.post('/time-tracking/manual', data),

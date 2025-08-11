@@ -48,12 +48,24 @@ app = FastAPI(
 # Create API router with /api prefix
 api_router = APIRouter(prefix="/api")
 
-# Add CORS middleware
+# Add CORS middleware with production-ready settings
+allowed_origins = [
+    settings.FRONTEND_URL,  # Frontend URL from environment
+    "http://localhost:3000",  # Local development
+    "http://127.0.0.1:3000",  # Local development alternative
+]
+
+# Add production origins if environment is production
+if os.getenv("ENVIRONMENT") == "production":
+    # Add your production frontend URLs here
+    production_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
+    allowed_origins.extend([origin.strip() for origin in production_origins if origin.strip()])
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],  # Allow all origins temporarily for debugging
-    allow_methods=["*"],
+    allow_origins=allowed_origins,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH"],
     allow_headers=["*"],
 )
 

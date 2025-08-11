@@ -82,3 +82,18 @@ class AcceptInvite(BaseModel):
     token: str
     name: str
     password: str
+
+class ForgotPassword(BaseModel):
+    email: EmailStr
+
+class ResetPassword(BaseModel):
+    token: str
+    new_password: str
+
+class PasswordResetToken(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: EmailStr
+    token: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    expires_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    used: bool = False
