@@ -28,3 +28,7 @@ websockets>=12.0
 bcrypt>=4.0.1
 python-dateutil>=2.8.2
 aiofiles>=23.1.0
+# New dependencies for advanced monitoring and analytics
+pillow>=10.0.0
+scipy>=1.11.0
+scikit-learn>=1.3.0

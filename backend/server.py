@@ -11,10 +11,14 @@ from contextlib import asynccontextmanager
 from database.mongodb import connect_to_mongo, close_mongo_connection
 
 # Import routes
-from routes import auth, users, projects, time_tracking, analytics, integrations, websocket
+from routes import auth, users, projects, time_tracking, analytics, integrations, websocket, monitoring, advanced_analytics
+from routes import organizations, productivity
 
 # Import configuration
 from config import settings
+
+# Import security middleware
+from middleware.security import security_middleware
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -61,6 +65,9 @@ if os.getenv("ENVIRONMENT") == "production":
     production_origins = os.getenv("ALLOWED_ORIGINS", "").split(",")
     allowed_origins.extend([origin.strip() for origin in production_origins if origin.strip()])
 
+# Add security middleware FIRST (highest priority)
+app.middleware("http")(security_middleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -70,12 +77,16 @@ app.add_middleware(
 )
 
 # Include all route modules
-api_router.include_router(auth.router)
-api_router.include_router(users.router)
-api_router.include_router(projects.router)
-api_router.include_router(time_tracking.router)
-api_router.include_router(analytics.router)
-api_router.include_router(integrations.router)
+api_router.include_router(organizations.router)  # Organization management (SECURE)
+api_router.include_router(auth.router)  # Authentication (SECURE)
+api_router.include_router(users.router)  # User management (SECURE) 
+api_router.include_router(projects.router)  # Project management (SECURE)
+api_router.include_router(time_tracking.router)  # Time tracking (SECURE)
+api_router.include_router(analytics.router)  # Basic analytics (SECURE)
+api_router.include_router(productivity.router)  # Productivity tracking (SECURE)
+api_router.include_router(integrations.router)  # Integrations
+api_router.include_router(monitoring.router)  # Monitoring (PARTIALLY SECURED - middleware protected)
+api_router.include_router(advanced_analytics.router)  # Advanced analytics (MIDDLEWARE PROTECTED)
 
 # Include WebSocket routes (without /api prefix)
 app.include_router(websocket.router)

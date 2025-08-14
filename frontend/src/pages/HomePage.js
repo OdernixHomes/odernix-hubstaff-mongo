@@ -25,10 +25,10 @@ export const HomePage = () => {
               className="px-4 py-3 w-full sm:w-80 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:border-transparent text-gray-900 placeholder-gray-500"
             />
             <Link
-              to="/signup"
+              to="/register-organization"
               className="bg-yellow-400 text-gray-900 px-8 py-3 rounded-lg font-semibold hover:bg-yellow-300 transition-colors w-full sm:w-auto text-center shadow-lg"
             >
-              Create account
+              Create Organization
             </Link>
           </div>
           

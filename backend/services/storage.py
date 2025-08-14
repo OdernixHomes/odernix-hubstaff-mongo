@@ -112,6 +112,40 @@ class StorageService:
             logger.error(f"Error deleting file {file_path}: {e}")
             return False
     
+    async def upload_file(self, filename: str, content: bytes, content_type: str) -> str:
+        """
+        Upload file content directly (for screenshot uploads)
+        
+        Args:
+            filename: Destination filename with path
+            content: File content as bytes
+            content_type: MIME type of the file
+            
+        Returns:
+            str: URL to the uploaded file
+        """
+        try:
+            if self.storage_type == "local":
+                # Ensure directory exists
+                file_path = self.upload_dir / filename
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Write content to file
+                async with aiofiles.open(file_path, 'wb') as f:
+                    await f.write(content)
+                
+                # Return URL
+                return f"/uploads/{filename}"
+                
+            elif self.storage_type == "aws_s3":
+                # S3 implementation would go here
+                logger.warning("S3 upload not implemented, falling back to local storage")
+                return await self.upload_file(filename, content, content_type)
+            
+        except Exception as e:
+            logger.error(f"Error uploading file {filename}: {e}")
+            raise StorageError(f"Failed to upload file: {e}")
+    
     def get_file_url(self, file_path: str) -> str:
         """
         Get the full URL for a file

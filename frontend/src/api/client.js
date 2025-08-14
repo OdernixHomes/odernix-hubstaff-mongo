@@ -66,9 +66,20 @@ export const authAPI = {
   resetPassword: (resetData) => apiClient.post('/auth/reset-password', resetData),
 };
 
+// Organization API (NEW - SECURE REGISTRATION)
+export const organizationAPI = {
+  register: (registrationData) => apiClient.post('/organizations/register', registrationData),
+  getMyOrganization: () => apiClient.get('/organizations/me'),
+  updateOrganization: (updateData) => apiClient.put('/organizations/me', updateData),
+  getStats: () => apiClient.get('/organizations/stats'),
+  getMembers: () => apiClient.get('/organizations/members'),
+  inviteUser: (inviteData) => apiClient.post('/organizations/invite', inviteData),
+  getAuditLog: (params = {}) => apiClient.get('/organizations/audit-log', { params }),
+};
+
 // Users API
 export const usersAPI = {
-  getUsers: (params = {}) => apiClient.get('/users', { params }),
+  getUsers: (params = {}) => apiClient.get('/users/', { params }),
   getUser: (userId) => apiClient.get(`/users/${userId}`),
   updateUser: (userId, userData) => apiClient.put(`/users/${userId}`, userData),
   updateCurrentUser: (userData) => apiClient.put('/users/me', userData),
@@ -78,7 +89,7 @@ export const usersAPI = {
 
 // Projects API
 export const projectsAPI = {
-  getProjects: (params = {}) => apiClient.get('/projects', { params }),
+  getProjects: (params = {}) => apiClient.get('/projects/', { params }),
   getProject: (projectId) => apiClient.get(`/projects/${projectId}`),
   createProject: (projectData) => apiClient.post('/projects', projectData),
   updateProject: (projectId, projectData) => apiClient.put(`/projects/${projectId}`, projectData),
@@ -118,19 +129,19 @@ export const timeTrackingAPI = {
 
 // Analytics API
 export const analyticsAPI = {
-  getDashboardAnalytics: () => apiClient.get('/analytics/dashboard'),
-  getTeamAnalytics: (startDate, endDate) => apiClient.get('/analytics/team', {
+  getDashboardAnalytics: () => apiClient.get('/analytics/dashboard/'),
+  getTeamAnalytics: (startDate, endDate) => apiClient.get('/analytics/team/', {
     params: { start_date: startDate, end_date: endDate }
   }),
-  getProductivityAnalytics: (period = 'week') => apiClient.get('/analytics/productivity', {
+  getProductivityAnalytics: (period = 'week') => apiClient.get('/analytics/productivity/', {
     params: { period }
   }),
-  generateCustomReport: (params) => apiClient.get('/analytics/reports/custom', { params }),
+  generateCustomReport: (params) => apiClient.get('/analytics/reports/custom/', { params }),
 };
 
 // Integrations API
 export const integrationsAPI = {
-  getIntegrations: () => apiClient.get('/integrations'),
+  getIntegrations: () => apiClient.get('/integrations/'),
   connectSlack: (webhookUrl) => apiClient.post('/integrations/slack/connect', { webhook_url: webhookUrl }),
   connectTrello: (apiKey, token) => apiClient.post('/integrations/trello/connect', { api_key: apiKey, token }),
   connectGitHub: (token) => apiClient.post('/integrations/github/connect', { token }),
@@ -142,7 +153,112 @@ export const integrationsAPI = {
 
 // WebSocket API
 export const websocketAPI = {
-  getOnlineUsers: () => apiClient.get('/online-users'),
+  getOnlineUsers: () => apiClient.get('/online-users/'),
+};
+
+// Activity Monitoring API
+export const activityAPI = {
+  // Activity updates
+  updateActivity: (activityData) => apiClient.post('/monitoring/activity/update', activityData),
+  
+  // Screenshot management
+  uploadScreenshot: (formData) => apiClient.post('/monitoring/screenshot/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  getScreenshots: (timeEntryId) => apiClient.get(`/monitoring/screenshots/${timeEntryId}`),
+  deleteScreenshot: (screenshotId) => apiClient.delete(`/monitoring/screenshots/${screenshotId}`),
+  
+  // Application tracking
+  recordApplicationSwitch: (appData) => apiClient.post('/monitoring/application/switch', appData),
+  
+  // Website tracking
+  recordWebsiteNavigation: (navData) => apiClient.post('/monitoring/website/navigate', navData),
+  
+  // Monitoring settings
+  getMonitoringSettings: () => apiClient.get('/monitoring/settings'),
+  updateMonitoringSettings: (settings) => apiClient.put('/monitoring/settings', settings),
+};
+
+// Productivity Tracking API
+export const productivityAPI = {
+  // Tracking control
+  startTracking: (data) => apiClient.post('/productivity/tracking/start', data),
+  stopTracking: (timeEntryId) => apiClient.post('/productivity/tracking/stop', { time_entry_id: timeEntryId }),
+  updateActivity: (timeEntryId, activityData) => apiClient.post('/productivity/tracking/activity', {
+    time_entry_id: timeEntryId,
+    ...activityData
+  }),
+  
+  // Screenshot management
+  uploadScreenshot: (formData) => apiClient.post('/productivity/screenshots/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  
+  // Reports and analytics
+  getUserReport: (userId, startDate, endDate) => apiClient.get(`/productivity/reports/user/${userId}`, {
+    params: { start_date: startDate, end_date: endDate }
+  }),
+  getOrganizationReport: (startDate, endDate) => apiClient.get('/productivity/reports/organization', {
+    params: { start_date: startDate, end_date: endDate }
+  }),
+  
+  // Alerts management
+  getAlerts: (limit = 50, unreadOnly = false) => apiClient.get('/productivity/alerts', {
+    params: { limit, unread_only: unreadOnly }
+  }),
+  markAlertAsRead: (alertId) => apiClient.put(`/productivity/alerts/${alertId}/read`),
+  
+  // Active users monitoring
+  getActiveUsers: () => apiClient.get('/productivity/users/active'),
+  
+  // Privacy and consent
+  getPrivacySettings: () => apiClient.get('/productivity/privacy/settings'),
+  recordConsent: (consentGiven) => apiClient.post('/productivity/consent', { consent_given: consentGiven }),
+};
+
+// Advanced Analytics API
+export const advancedAnalyticsAPI = {
+  // Enhanced dashboard
+  getEnhancedDashboard: (days = 7) => apiClient.get('/advanced-analytics/dashboard/enhanced', {
+    params: { days }
+  }),
+  
+  // Detailed analytics
+  getDetailedProductivity: (startDate, endDate, granularity = 'daily') => 
+    apiClient.get('/advanced-analytics/productivity/detailed', {
+      params: { start_date: startDate, end_date: endDate, granularity }
+    }),
+  
+  // Team analytics
+  getComprehensiveTeamAnalytics: (startDate, endDate, teamIds = null) =>
+    apiClient.get('/advanced-analytics/team/comprehensive', {
+      params: { start_date: startDate, end_date: endDate, team_ids: teamIds }
+    }),
+  
+  // Goals management
+  createGoal: (goalData) => apiClient.post('/advanced-analytics/goals', goalData),
+  getGoals: (activeOnly = true) => apiClient.get('/advanced-analytics/goals', {
+    params: { active_only: activeOnly }
+  }),
+  updateGoal: (goalId, goalData) => apiClient.put(`/advanced-analytics/goals/${goalId}`, goalData),
+  
+  // Reports
+  generateCustomReport: (reportData) => apiClient.post('/advanced-analytics/reports/generate', reportData),
+  
+  // Insights
+  getProductivityInsights: (days = 7) => apiClient.get('/advanced-analytics/insights', {
+    params: { days }
+  }),
+  
+  // Heatmap
+  getProductivityHeatmap: (startDate, endDate) => apiClient.get('/advanced-analytics/heatmap', {
+    params: { start_date: startDate, end_date: endDate }
+  }),
+  
+  // Alerts
+  getProductivityAlerts: (unresolvedOnly = true) => apiClient.get('/advanced-analytics/alerts', {
+    params: { unresolved_only: unresolvedOnly }
+  }),
 };
 
 // Health check API

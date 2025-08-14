@@ -3,7 +3,7 @@ from typing import List, Optional
 from datetime import datetime, timedelta
 from models.project import Project, ProjectCreate, ProjectUpdate, Task, TaskCreate, TaskUpdate, ProjectStatus
 from models.user import User
-from auth.dependencies import get_current_user, require_admin_or_manager
+from auth.dependencies import get_current_user, require_admin_or_manager, validate_same_organization_user
 from database.mongodb import DatabaseOperations
 import logging
 
@@ -15,17 +15,34 @@ async def create_project(
     project_data: ProjectCreate,
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new project"""
+    """Create a new project with organization isolation"""
     try:
+        # Validate team members belong to same organization
+        if project_data.team_members:
+            for member_id in project_data.team_members:
+                member = await DatabaseOperations.get_document(
+                    "users", 
+                    {"id": member_id, "organization_id": current_user.organization_id}
+                )
+                if not member:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Team member {member_id} not found in your organization"
+                    )
+        
+        # CRITICAL SECURITY: Include organization_id
         project = Project(
             **project_data.model_dump(),
-            created_by=current_user.id
+            created_by=current_user.id,
+            organization_id=current_user.organization_id
         )
         
         await DatabaseOperations.create_document("projects", project.model_dump())
         
         return project
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Create project error: {e}")
         raise HTTPException(
@@ -40,9 +57,10 @@ async def get_projects(
     status: Optional[ProjectStatus] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Get projects (all authenticated users can view all projects)"""
+    """Get projects from current user's organization only (organization isolation)"""
     try:
-        query = {}
+        # CRITICAL SECURITY: Only return projects from same organization
+        query = {"organization_id": current_user.organization_id}
         
         if status:
             query["status"] = status
@@ -66,19 +84,21 @@ async def get_projects(
 
 @router.get("/{project_id}", response_model=Project)
 async def get_project(project_id: str, current_user: User = Depends(get_current_user)):
-    """Get project by ID"""
+    """Get project by ID (with organization isolation)"""
     try:
-        project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Only allow access to projects from same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
             )
         
         project = Project(**project_data)
-        
-        # All authenticated users can view project details
-        # Access restrictions removed for better collaboration
         
         return project
         
@@ -97,10 +117,15 @@ async def update_project(
     project_update: ProjectUpdate,
     current_user: User = Depends(get_current_user)
 ):
-    """Update project"""
+    """Update project (with organization isolation)"""
     try:
-        project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Only allow updates to projects from same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
@@ -108,7 +133,7 @@ async def update_project(
         
         project = Project(**project_data)
         
-        # Check permissions
+        # Check permissions within organization
         if (current_user.role not in ["admin", "manager"] and 
             project.created_by != current_user.id):
             raise HTTPException(
@@ -118,15 +143,38 @@ async def update_project(
         
         update_data = project_update.dict(exclude_unset=True)
         
+        # Validate team members belong to same organization
+        if "team_members" in update_data and update_data["team_members"]:
+            for member_id in update_data["team_members"]:
+                member = await DatabaseOperations.get_document(
+                    "users", 
+                    {"id": member_id, "organization_id": current_user.organization_id}
+                )
+                if not member:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Team member {member_id} not found in your organization"
+                    )
+        
+        # Prevent changing organization_id
+        if "organization_id" in update_data:
+            del update_data["organization_id"]
+        
         if update_data:
+            update_data["updated_at"] = datetime.utcnow()
+            
+            # CRITICAL SECURITY: Include organization_id in update query
             await DatabaseOperations.update_document(
                 "projects",
-                {"id": project_id},
-                update_data
+                {"id": project_id, "organization_id": current_user.organization_id},
+                {"$set": update_data}
             )
         
-        # Get updated project
-        updated_project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # Get updated project with organization validation
+        updated_project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         return Project(**updated_project_data)
         
     except HTTPException:
@@ -143,20 +191,37 @@ async def delete_project(
     project_id: str,
     current_user: User = Depends(require_admin_or_manager)
 ):
-    """Delete project"""
+    """Delete project (with organization isolation)"""
     try:
-        project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Only allow deletion of projects from same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
             )
         
-        # Delete related tasks
-        await DatabaseOperations.delete_document("tasks", {"project_id": project_id})
+        # CRITICAL SECURITY: Delete related tasks only from same organization
+        await DatabaseOperations.delete_documents(
+            "tasks", 
+            {"project_id": project_id, "organization_id": current_user.organization_id}
+        )
         
-        # Delete project
-        await DatabaseOperations.delete_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Delete project with organization validation
+        result = await DatabaseOperations.delete_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
+        
+        if result.deleted_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Project not found"
+            )
         
         return {"message": "Project deleted successfully"}
         
@@ -176,23 +241,37 @@ async def create_task(
     task_data: TaskCreate,
     current_user: User = Depends(get_current_user)
 ):
-    """Create a new task in project"""
+    """Create a new task in project (with organization isolation)"""
     try:
-        # Verify project exists and user has access
-        project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Verify project exists in same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
             )
         
-        project = Project(**project_data)
-        # All users can create tasks in any project for better collaboration
+        # Validate assignee belongs to same organization
+        assignee = await DatabaseOperations.get_document(
+            "users", 
+            {"id": task_data.assignee_id, "organization_id": current_user.organization_id}
+        )
+        if not assignee:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Assignee not found in your organization"
+            )
         
+        # CRITICAL SECURITY: Include organization_id
         task = Task(
             **task_data.model_dump(),
             project_id=project_id,
-            created_by=current_user.id
+            created_by=current_user.id,
+            organization_id=current_user.organization_id
         )
         
         await DatabaseOperations.create_document("tasks", task.model_dump())
@@ -213,22 +292,24 @@ async def get_project_tasks(
     project_id: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Get tasks for a project"""
+    """Get tasks for a project (with organization isolation)"""
     try:
-        # Verify project access
-        project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+        # CRITICAL SECURITY: Verify project exists in same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
             )
         
-        project = Project(**project_data)
-        # All authenticated users can view project tasks for better collaboration
-        
+        # CRITICAL SECURITY: Only get tasks from same organization
         tasks_data = await DatabaseOperations.get_documents(
             "tasks",
-            {"project_id": project_id},
+            {"project_id": project_id, "organization_id": current_user.organization_id},
             sort=[("created_at", -1)]
         )
         
@@ -245,24 +326,26 @@ async def get_project_tasks(
 
 @router.get("/stats/dashboard")
 async def get_project_stats(current_user: User = Depends(get_current_user)):
-    """Get project statistics for dashboard"""
+    """Get project statistics for dashboard (organization-specific)"""
     try:
-        # Projects by status
+        # CRITICAL SECURITY: Projects by status for current organization only
         pipeline = [
+            {"$match": {"organization_id": current_user.organization_id}},
             {"$group": {"_id": "$status", "count": {"$sum": 1}, "total_budget": {"$sum": "$budget"}, "total_spent": {"$sum": "$spent"}}}
         ]
         project_stats = await DatabaseOperations.aggregate("projects", pipeline)
         
-        # Recent projects
+        # CRITICAL SECURITY: Recent projects from current organization only
         recent_projects = await DatabaseOperations.get_documents(
             "projects",
-            {},
+            {"organization_id": current_user.organization_id},
             sort=[("updated_at", -1)],
             limit=5
         )
         
-        # Task statistics
+        # CRITICAL SECURITY: Task statistics from current organization only
         task_pipeline = [
+            {"$match": {"organization_id": current_user.organization_id}},
             {"$group": {"_id": "$status", "count": {"$sum": 1}}}
         ]
         task_stats = await DatabaseOperations.aggregate("tasks", task_pipeline)
@@ -283,11 +366,12 @@ async def get_project_stats(current_user: User = Depends(get_current_user)):
 # Task management endpoints
 @router.get("/tasks/assigned", response_model=List[Task])
 async def get_assigned_tasks(current_user: User = Depends(get_current_user)):
-    """Get tasks assigned to current user"""
+    """Get tasks assigned to current user (organization-specific)"""
     try:
+        # CRITICAL SECURITY: Only get tasks assigned to user in their organization
         tasks_data = await DatabaseOperations.get_documents(
             "tasks",
-            {"assignee_id": current_user.id},
+            {"assignee_id": current_user.id, "organization_id": current_user.organization_id},
             sort=[("created_at", -1)]
         )
         
@@ -302,11 +386,12 @@ async def get_assigned_tasks(current_user: User = Depends(get_current_user)):
 
 @router.get("/tasks/all", response_model=List[Task])
 async def get_all_tasks(current_user: User = Depends(get_current_user)):
-    """Get all tasks (with project info)"""
+    """Get all tasks from current organization (organization-specific)"""
     try:
+        # CRITICAL SECURITY: Only get tasks from current organization
         tasks_data = await DatabaseOperations.get_documents(
             "tasks",
-            {},
+            {"organization_id": current_user.organization_id},
             sort=[("created_at", -1)]
         )
         
@@ -325,10 +410,15 @@ async def update_task(
     task_update: TaskUpdate,
     current_user: User = Depends(get_current_user)
 ):
-    """Update task (assignee can update status, others need admin/manager role)"""
+    """Update task (with organization isolation)"""
     try:
-        task_data = await DatabaseOperations.get_document("tasks", {"id": task_id})
+        # CRITICAL SECURITY: Only allow access to tasks from same organization
+        task_data = await DatabaseOperations.get_document(
+            "tasks", 
+            {"id": task_id, "organization_id": current_user.organization_id}
+        )
         if not task_data:
+            # Don't reveal if task exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Task not found"
@@ -344,6 +434,20 @@ async def update_task(
                 detail="Only task assignee or admin/manager can update this task"
             )
         
+        update_data = task_update.dict(exclude_unset=True)
+        
+        # Validate assignee belongs to same organization if being changed
+        if "assignee_id" in update_data:
+            assignee = await DatabaseOperations.get_document(
+                "users", 
+                {"id": update_data["assignee_id"], "organization_id": current_user.organization_id}
+            )
+            if not assignee:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Assignee not found in your organization"
+                )
+        
         # If user is assignee but not admin/manager, only allow status updates
         if task.assignee_id == current_user.id and current_user.role not in ["admin", "manager"]:
             # Filter update to only allow status changes
@@ -351,19 +455,26 @@ async def update_task(
             if task_update.status is not None:
                 allowed_updates["status"] = task_update.status
             update_data = allowed_updates
-        else:
-            # Admin/manager can update everything
-            update_data = task_update.dict(exclude_unset=True)
+        
+        # Prevent changing organization_id
+        if "organization_id" in update_data:
+            del update_data["organization_id"]
         
         if update_data:
+            update_data["updated_at"] = datetime.utcnow()
+            
+            # CRITICAL SECURITY: Include organization_id in update query
             await DatabaseOperations.update_document(
                 "tasks",
-                {"id": task_id},
-                update_data
+                {"id": task_id, "organization_id": current_user.organization_id},
+                {"$set": update_data}
             )
         
-        # Get updated task
-        updated_task_data = await DatabaseOperations.get_document("tasks", {"id": task_id})
+        # Get updated task with organization validation
+        updated_task_data = await DatabaseOperations.get_document(
+            "tasks", 
+            {"id": task_id, "organization_id": current_user.organization_id}
+        )
         return Task(**updated_task_data)
         
     except HTTPException:

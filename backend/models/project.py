@@ -30,7 +30,8 @@ class Project(BaseModel):
     hours_tracked: float = 0.0
     status: ProjectStatus = ProjectStatus.ACTIVE
     created_by: str  # User ID
-    team_members: List[str] = []  # List of User IDs
+    organization_id: str  # CRITICAL: Organization isolation
+    team_members: List[str] = []  # List of User IDs from same organization
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     deadline: Optional[datetime] = None
@@ -57,12 +58,13 @@ class Task(BaseModel):
     title: str
     description: Optional[str] = None
     project_id: str
-    assignee_id: str
+    assignee_id: str  # Must be from same organization
     status: TaskStatus = TaskStatus.TODO
     priority: TaskPriority = TaskPriority.MEDIUM
     estimated_hours: Optional[float] = None
     actual_hours: float = 0.0
     created_by: str
+    organization_id: str  # CRITICAL: Organization isolation
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     due_date: Optional[datetime] = None

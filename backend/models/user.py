@@ -21,11 +21,15 @@ class User(BaseModel):
     role: UserRole
     status: UserStatus = UserStatus.OFFLINE
     avatar: Optional[str] = None
-    company: Optional[str] = None
+    # Organization-based security
+    organization_id: str  # Required - every user must belong to an organization
+    is_organization_owner: bool = False
     timezone: str = "UTC"
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     last_active: Optional[datetime] = None
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     working_hours: Optional[dict] = {"start": "09:00", "end": "17:00"}
     settings: Optional[dict] = {
         "screenshot_interval": 10,
@@ -34,11 +38,12 @@ class User(BaseModel):
         "notifications": True
     }
 
+# UserCreate is now used only for internal user creation within an organization
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
-    company: Optional[str] = None
+    organization_id: str  # Must be provided when creating users
     role: UserRole = UserRole.USER
 
 class UserUpdate(BaseModel):
@@ -59,10 +64,12 @@ class UserResponse(BaseModel):
     role: UserRole
     status: UserStatus
     avatar: Optional[str] = None
-    company: Optional[str] = None
+    organization_id: str
+    is_organization_owner: bool
     timezone: str
     created_at: datetime
     last_active: Optional[datetime] = None
+    email_verified: bool
 
 class InviteUser(BaseModel):
     email: EmailStr
@@ -72,11 +79,13 @@ class Invitation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     email: EmailStr
     role: UserRole
-    invited_by: str
+    organization_id: str  # Organization context for invitation
+    invited_by: str  # User ID of inviter
     token: str = Field(default_factory=lambda: str(uuid.uuid4()))
     expires_at: datetime
     created_at: datetime = Field(default_factory=datetime.utcnow)
     accepted: bool = False
+    organization_name: Optional[str] = None  # For display purposes
 
 class AcceptInvite(BaseModel):
     token: str

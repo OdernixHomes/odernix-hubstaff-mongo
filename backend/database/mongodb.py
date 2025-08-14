@@ -73,6 +73,35 @@ async def create_indexes():
         await db.database.password_reset_tokens.create_index("token", unique=True)
         await db.database.password_reset_tokens.create_index("expires_at")
         
+        # Productivity tracking indexes
+        await db.database.real_time_activity.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.real_time_activity.create_index([("organization_id", 1), ("tracking_status", 1)])
+        await db.database.real_time_activity.create_index("time_entry_id")
+        
+        # Productivity reports indexes
+        await db.database.productivity_reports.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.productivity_reports.create_index([("organization_id", 1), ("report_date", -1)])
+        
+        # Productivity alerts indexes
+        await db.database.productivity_alerts.create_index([("organization_id", 1), ("is_read", 1)])
+        await db.database.productivity_alerts.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.productivity_alerts.create_index("triggered_at")
+        
+        # Keyboard activity indexes
+        await db.database.keyboard_activity.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.keyboard_activity.create_index([("organization_id", 1), ("time_entry_id", 1)])
+        await db.database.keyboard_activity.create_index("timestamp")
+        
+        # Mouse activity indexes
+        await db.database.mouse_activity.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.mouse_activity.create_index([("organization_id", 1), ("time_entry_id", 1)])
+        await db.database.mouse_activity.create_index("timestamp")
+        
+        # Screenshot analysis indexes
+        await db.database.screenshot_analysis.create_index([("organization_id", 1), ("user_id", 1)])
+        await db.database.screenshot_analysis.create_index("screenshot_id")
+        await db.database.screenshot_analysis.create_index("analysis_timestamp")
+        
         logger.info("Database indexes created successfully")
         
     except Exception as e:

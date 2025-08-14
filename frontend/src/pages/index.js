@@ -1,6 +1,7 @@
 export { HomePage } from './HomePage';
 export { LoginPage } from './LoginPage';
 export { SignupPage } from './SignupPage';
+export { default as OrganizationRegistrationPage } from './OrganizationRegistrationPage';
 export { DashboardPage } from './DashboardPage';
 export { TimeTrackingPage } from './TimeTrackingPage';
 export { TeamManagementPage } from './TeamManagementPage';

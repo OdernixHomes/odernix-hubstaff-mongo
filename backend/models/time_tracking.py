@@ -8,6 +8,7 @@ class TimeEntry(BaseModel):
     user_id: str
     project_id: str
     task_id: Optional[str] = None
+    organization_id: str  # CRITICAL: Organization isolation
     start_time: datetime
     end_time: Optional[datetime] = None
     duration: Optional[int] = None  # in seconds
@@ -46,6 +47,7 @@ class ActivityData(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     time_entry_id: str
+    organization_id: str  # CRITICAL: Organization isolation
     timestamp: datetime
     mouse_clicks: int = 0
     keyboard_strokes: int = 0
@@ -58,12 +60,14 @@ class Screenshot(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     time_entry_id: str
+    organization_id: str  # CRITICAL: Organization isolation
     url: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     activity_level: Optional[float] = None
 
 class DailyReport(BaseModel):
     user_id: str
+    organization_id: str  # CRITICAL: Organization isolation
     date: datetime
     total_hours: float
     projects_worked: List[dict]

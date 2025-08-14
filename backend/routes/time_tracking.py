@@ -30,38 +30,48 @@ async def start_time_tracking(
                 detail="You already have an active time entry. Please stop it first."
             )
         
-        # Verify project exists
-        project_data = await DatabaseOperations.get_document("projects", {"id": entry_data.project_id})
+        # CRITICAL SECURITY: Verify project exists in same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": entry_data.project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
+            # Don't reveal if project exists in different organization
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Project not found"
             )
         
-        # Verify task exists if provided
+        # CRITICAL SECURITY: Verify task exists in same organization if provided
         if entry_data.task_id:
-            task_data = await DatabaseOperations.get_document("tasks", {"id": entry_data.task_id})
+            task_data = await DatabaseOperations.get_document(
+                "tasks", 
+                {"id": entry_data.task_id, "organization_id": current_user.organization_id}
+            )
             if not task_data:
+                # Don't reveal if task exists in different organization
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Task not found"
                 )
         
+        # CRITICAL SECURITY: Include organization_id
         time_entry = TimeEntry(
             user_id=current_user.id,
             project_id=entry_data.project_id,
             task_id=entry_data.task_id,
+            organization_id=current_user.organization_id,
             start_time=datetime.utcnow(),
             description=entry_data.description
         )
         
         await DatabaseOperations.create_document("time_entries", time_entry.model_dump())
         
-        # Update user status to active
+        # Update user status to active with organization context
         await DatabaseOperations.update_document(
             "users",
-            {"id": current_user.id},
-            {"status": "active", "last_active": datetime.utcnow()}
+            {"id": current_user.id, "organization_id": current_user.organization_id},
+            {"$set": {"status": "active", "last_active": datetime.utcnow()}}
         )
         
         return time_entry
@@ -401,9 +411,10 @@ async def resume_time_tracking(
 async def get_active_time_entry(current_user: User = Depends(get_current_user)):
     """Get current user's active time entry"""
     try:
+        # CRITICAL SECURITY: Only get active entries from same organization
         entry_data = await DatabaseOperations.get_document(
             "time_entries",
-            {"user_id": current_user.id, "end_time": None}
+            {"user_id": current_user.id, "organization_id": current_user.organization_id, "end_time": None}
         )
         
         if not entry_data:
@@ -427,9 +438,10 @@ async def get_time_entries(
     project_id: Optional[str] = None,
     current_user: User = Depends(get_current_user)
 ):
-    """Get time entries for current user"""
+    """Get time entries for current user (organization-specific)"""
     try:
-        query = {"user_id": current_user.id}
+        # CRITICAL SECURITY: Only get entries from same organization
+        query = {"user_id": current_user.id, "organization_id": current_user.organization_id}
         
         if project_id:
             query["project_id"] = project_id
@@ -466,8 +478,11 @@ async def create_manual_time_entry(
 ):
     """Create manual time entry"""
     try:
-        # Verify project exists
-        project_data = await DatabaseOperations.get_document("projects", {"id": entry_data.project_id})
+        # CRITICAL SECURITY: Verify project exists in same organization
+        project_data = await DatabaseOperations.get_document(
+            "projects", 
+            {"id": entry_data.project_id, "organization_id": current_user.organization_id}
+        )
         if not project_data:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -483,10 +498,12 @@ async def create_manual_time_entry(
                 detail="End time must be after start time"
             )
         
+        # CRITICAL SECURITY: Include organization_id in manual time entry
         time_entry = TimeEntry(
             user_id=current_user.id,
             project_id=entry_data.project_id,
             task_id=entry_data.task_id,
+            organization_id=current_user.organization_id,
             start_time=entry_data.start_time,
             end_time=entry_data.end_time,
             duration=duration,
@@ -496,10 +513,10 @@ async def create_manual_time_entry(
         
         await DatabaseOperations.create_document("time_entries", time_entry.model_dump())
         
-        # Update project hours
+        # CRITICAL SECURITY: Update project hours with organization validation
         await DatabaseOperations.update_document(
             "projects",
-            {"id": entry_data.project_id},
+            {"id": entry_data.project_id, "organization_id": current_user.organization_id},
             {"$inc": {"hours_tracked": duration / 3600}}
         )
         
@@ -560,9 +577,11 @@ async def record_activity(
     activity: ActivityData,
     current_user: User = Depends(get_current_user)
 ):
-    """Record activity data"""
+    """Record activity data (organization-specific)"""
     try:
+        # CRITICAL SECURITY: Include organization context
         activity.user_id = current_user.id
+        activity.organization_id = current_user.organization_id
         
         await DatabaseOperations.create_document("activity_data", activity.model_dump())
         
@@ -583,10 +602,10 @@ async def upload_screenshot(
 ):
     """Upload screenshot"""
     try:
-        # Verify time entry belongs to user
+        # CRITICAL SECURITY: Verify time entry belongs to user in same organization
         entry_data = await DatabaseOperations.get_document(
             "time_entries",
-            {"id": time_entry_id, "user_id": current_user.id}
+            {"id": time_entry_id, "user_id": current_user.id, "organization_id": current_user.organization_id}
         )
         
         if not entry_data:
@@ -602,9 +621,11 @@ async def upload_screenshot(
             user_id=current_user.id
         )
         
+        # CRITICAL SECURITY: Include organization context in screenshot
         screenshot = Screenshot(
             user_id=current_user.id,
             time_entry_id=time_entry_id,
+            organization_id=current_user.organization_id,
             url=screenshot_url
         )
         
@@ -643,11 +664,12 @@ async def get_daily_report(
         start_datetime = datetime.combine(date, datetime.min.time())
         end_datetime = datetime.combine(date, datetime.max.time())
         
-        # Get time entries for the day
+        # CRITICAL SECURITY: Get time entries for the day from same organization
         entries_data = await DatabaseOperations.get_documents(
             "time_entries",
             {
                 "user_id": current_user.id,
+                "organization_id": current_user.organization_id,
                 "start_time": {"$gte": start_datetime, "$lte": end_datetime}
             }
         )
@@ -672,7 +694,11 @@ async def get_daily_report(
                     continue
                     
                 if project_id not in projects:
-                    project_data = await DatabaseOperations.get_document("projects", {"id": project_id})
+                    # CRITICAL SECURITY: Only get projects from same organization
+                    project_data = await DatabaseOperations.get_document(
+                        "projects", 
+                        {"id": project_id, "organization_id": current_user.organization_id}
+                    )
                     projects[project_id] = {
                         "project_name": project_data.get("name", "Unknown") if project_data else "Unknown",
                         "hours": 0,
@@ -716,7 +742,7 @@ async def get_team_time_report(
     end_date: Optional[date] = None,
     current_user: User = Depends(require_admin_or_manager)
 ):
-    """Get team time tracking report"""
+    """Get team time tracking report (organization-specific)"""
     try:
         if not start_date:
             start_date = (datetime.utcnow() - timedelta(days=7)).date()
@@ -726,10 +752,11 @@ async def get_team_time_report(
         start_datetime = datetime.combine(start_date, datetime.min.time())
         end_datetime = datetime.combine(end_date, datetime.max.time())
         
-        # Aggregate team data
+        # CRITICAL SECURITY: Aggregate team data only from same organization
         pipeline = [
             {
                 "$match": {
+                    "organization_id": current_user.organization_id,
                     "start_time": {"$gte": start_datetime, "$lte": end_datetime}
                 }
             },
@@ -745,9 +772,12 @@ async def get_team_time_report(
         
         team_data = await DatabaseOperations.aggregate("time_entries", pipeline)
         
-        # Get user details
+        # CRITICAL SECURITY: Get user details only from same organization
         for user_data in team_data:
-            user_info = await DatabaseOperations.get_document("users", {"id": user_data["_id"]})
+            user_info = await DatabaseOperations.get_document(
+                "users", 
+                {"id": user_data["_id"], "organization_id": current_user.organization_id}
+            )
             user_data["user_name"] = user_info["name"] if user_info else "Unknown"
             user_data["total_hours"] = user_data["total_hours"] / 3600
         

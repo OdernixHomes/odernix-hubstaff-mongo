@@ -119,7 +119,12 @@ export const DashboardPage = ({ user, onLogout }) => {
                   </h1>
                 </div>
                 <p className="text-gray-600 text-lg">
-                  Welcome back, <span className="font-semibold text-blue-600">{user.name}</span>! Here's what's happening with your team today.
+                  Welcome back, <span className="font-semibold text-blue-600">{user.name}</span>! 
+                  {user.role === 'admin' || user.role === 'owner' ? (
+                    <span> You're managing <span className="font-semibold text-purple-600">{user.organization_name}</span> organization. Here's your team's productivity overview.</span>
+                  ) : (
+                    <span> You're part of <span className="font-semibold text-purple-600">{user.organization_name}</span> organization. Here's your productivity dashboard.</span>
+                  )}
                 </p>
               </div>
             </div>
