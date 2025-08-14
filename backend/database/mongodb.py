@@ -126,12 +126,13 @@ class DatabaseOperations:
     
     @staticmethod
     async def get_documents(collection: str, query: Dict[str, Any] = None, 
-                          sort: List = None, limit: int = None, skip: int = 0) -> List[Dict[str, Any]]:
+                          sort: List = None, limit: int = None, skip: int = 0,
+                          projection: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """Get multiple documents from the collection"""
         if query is None:
             query = {}
         
-        cursor = db.database[collection].find(query)
+        cursor = db.database[collection].find(query, projection)
         
         if sort:
             cursor = cursor.sort(sort)

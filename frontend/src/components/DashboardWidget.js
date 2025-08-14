@@ -33,27 +33,27 @@ export const DashboardWidget = ({ title, value, subtitle, icon, color = "blue" }
   return (
     <div className="relative group cursor-pointer">
       {/* Background Gradient */}
-      <div className={`absolute inset-0 bg-gradient-to-r ${selectedColor.lightGradient} rounded-2xl transform group-hover:scale-105 transition-all duration-300`}></div>
+      <div className={`absolute inset-0 bg-gradient-to-r ${selectedColor.lightGradient} rounded-xl sm:rounded-2xl transform group-hover:scale-105 transition-all duration-300`}></div>
       
       {/* Main Card */}
-      <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 hover:shadow-2xl transition-all duration-300">
+      <div className="relative bg-white/80 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20 hover:shadow-2xl transition-all duration-300">
         <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center space-x-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center space-x-3 sm:space-x-4">
               {/* Icon Container */}
-              <div className={`w-14 h-14 bg-gradient-to-r ${selectedColor.gradient} rounded-2xl flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300 shadow-lg`}>
-                <span className="text-white text-2xl">{icon}</span>
+              <div className={`w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r ${selectedColor.gradient} rounded-xl sm:rounded-2xl flex items-center justify-center transform group-hover:rotate-12 transition-transform duration-300 shadow-lg flex-shrink-0`}>
+                <span className="text-white text-lg sm:text-2xl">{icon}</span>
               </div>
               
               {/* Content */}
-              <div className="flex-1">
-                <h3 className={`text-lg font-bold bg-gradient-to-r ${selectedColor.textGradient} bg-clip-text text-transparent mb-1`}>
+              <div className="flex-1 min-w-0">
+                <h3 className={`text-base sm:text-lg font-bold bg-gradient-to-r ${selectedColor.textGradient} bg-clip-text text-transparent mb-1 truncate`}>
                   {title}
                 </h3>
-                <p className={`text-3xl font-bold ${selectedColor.valueColor} mb-1 group-hover:scale-110 transition-transform duration-300 inline-block`}>
+                <p className={`text-2xl sm:text-3xl font-bold ${selectedColor.valueColor} mb-1 group-hover:scale-110 transition-transform duration-300 inline-block`}>
                   {value}
                 </p>
-                <p className="text-sm text-gray-600 font-medium">
+                <p className="text-xs sm:text-sm text-gray-600 font-medium truncate">
                   {subtitle}
                 </p>
               </div>
@@ -61,11 +61,11 @@ export const DashboardWidget = ({ title, value, subtitle, icon, color = "blue" }
           </div>
           
           {/* Decorative Element */}
-          <div className={`w-2 h-16 bg-gradient-to-b ${selectedColor.gradient} rounded-full opacity-20 group-hover:opacity-60 transition-opacity duration-300`}></div>
+          <div className={`w-1.5 sm:w-2 h-12 sm:h-16 bg-gradient-to-b ${selectedColor.gradient} rounded-full opacity-20 group-hover:opacity-60 transition-opacity duration-300 flex-shrink-0`}></div>
         </div>
         
         {/* Bottom Accent */}
-        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${selectedColor.gradient} rounded-b-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
+        <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${selectedColor.gradient} rounded-b-xl sm:rounded-b-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300`}></div>
       </div>
     </div>
   );

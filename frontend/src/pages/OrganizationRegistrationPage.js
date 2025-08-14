@@ -160,36 +160,36 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-6 sm:py-12 px-4 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+        <h2 className="mt-3 sm:mt-6 text-center text-2xl sm:text-3xl font-extrabold text-gray-900">
           Create Your Organization
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
+        <p className="mt-1 sm:mt-2 text-center text-xs sm:text-sm text-gray-600">
           Set up your organization and become the administrator
         </p>
       </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+      <div className="mt-6 sm:mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-6 sm:py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {/* Debug Tools */}
-          <div className="mb-6 space-y-4">
+          <div className="mb-4 sm:mb-6 space-y-3 sm:space-y-4">
             <RegistrationDebug />
             <TokenDebug />
           </div>
           
           {/* Information Box */}
-          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-start">
               <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <svg className="h-4 w-4 sm:h-5 sm:w-5 text-blue-400 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                 </svg>
               </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-blue-800">What happens when you register?</h3>
-                <div className="mt-2 text-sm text-blue-700">
-                  <ul className="list-disc list-inside space-y-1">
+              <div className="ml-2 sm:ml-3">
+                <h3 className="text-xs sm:text-sm font-medium text-blue-800">What happens when you register?</h3>
+                <div className="mt-1 sm:mt-2 text-xs sm:text-sm text-blue-700">
+                  <ul className="list-disc list-inside space-y-0.5 sm:space-y-1">
                     <li><strong>New Organization:</strong> A completely isolated workspace is created for your team</li>
                     <li><strong>Admin Account:</strong> You become the organization administrator with full control</li>
                     <li><strong>Data Privacy:</strong> Your organization's data is completely separate from others</li>
@@ -201,15 +201,15 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
             {/* Organization Information */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 border-b border-gray-200 pb-1.5 sm:pb-2">
                 Organization Information
               </h3>
               
               <div>
-                <label htmlFor="organization_name" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="organization_name" className="block text-xs sm:text-sm font-medium text-gray-700">
                   Organization Name *
                 </label>
                 <input
@@ -219,18 +219,18 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
                   required
                   value={formData.organization_name}
                   onChange={handleChange}
-                  className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
+                  className={`mt-1 appearance-none relative block w-full px-3 py-2.5 sm:py-2 border ${
                     errors.organization_name ? 'border-red-300' : 'border-gray-300'
-                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 text-sm sm:text-sm`}
                   placeholder="Your company name"
                 />
                 {errors.organization_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.organization_name}</p>
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.organization_name}</p>
                 )}
               </div>
 
               <div>
-                <label htmlFor="organization_domain" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="organization_domain" className="block text-xs sm:text-sm font-medium text-gray-700">
                   Organization Domain * 
                   <span className="text-xs text-gray-500 ml-1">(used for unique identification)</span>
                 </label>
@@ -241,23 +241,23 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
                   required
                   value={formData.organization_domain}
                   onChange={handleChange}
-                  className={`mt-1 appearance-none relative block w-full px-3 py-2 border ${
+                  className={`mt-1 appearance-none relative block w-full px-3 py-2.5 sm:py-2 border ${
                     errors.organization_domain ? 'border-red-300' : 'border-gray-300'
-                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                  } placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 text-sm sm:text-sm`}
                   placeholder="my-company"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Only letters, numbers, and hyphens. This will be your unique organization identifier.
                 </p>
                 {errors.organization_domain && (
-                  <p className="mt-1 text-sm text-red-600">{errors.organization_domain}</p>
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">{errors.organization_domain}</p>
                 )}
               </div>
             </div>
 
             {/* Administrator Account */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2">
+            <div className="space-y-3 sm:space-y-4">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 border-b border-gray-200 pb-1.5 sm:pb-2">
                 Administrator Account
               </h3>
               
@@ -437,14 +437,14 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white ${
+                className={`group relative w-full flex justify-center py-2.5 sm:py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white touch-manipulation ${
                   isLoading 
                     ? 'bg-gray-400 cursor-not-allowed' 
                     : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
                 }`}
               >
                 {isLoading ? (
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin -ml-1 mr-3 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
@@ -472,8 +472,8 @@ const OrganizationRegistrationPage = ({ onLogin }) => {
             )}
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
+          <div className="mt-4 sm:mt-6 text-center">
+            <p className="text-xs sm:text-sm text-gray-600">
               Already have an account?{' '}
               <button
                 onClick={() => navigate('/login')}

@@ -11,7 +11,16 @@ router = APIRouter()
 
 async def get_user_from_token(token: str):
     """Get user from WebSocket token"""
-    user_id = verify_token(token)
+    payload = verify_token(token)
+    if not payload:
+        return None
+    
+    # Handle both old and new token formats
+    if isinstance(payload, str):
+        user_id = payload
+    else:
+        user_id = payload.get("user_id") or payload.get("sub")
+    
     if not user_id:
         return None
     

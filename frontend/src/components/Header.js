@@ -182,7 +182,7 @@ export const Header = ({ user, onLogout, currentPage, onToggleMobileSidebar, isM
             <div className="flex items-center space-x-2 sm:space-x-4">
               <Link to="/login" className="text-gray-700 hover:text-gray-900 text-sm sm:text-base">Sign in</Link>
               <Link to="/signup" className="bg-blue-600 text-white px-3 py-2 sm:px-4 text-xs sm:text-sm rounded-md hover:bg-blue-700">
-                Free 14-day trial
+                Register
               </Link>
             </div>
           )}
