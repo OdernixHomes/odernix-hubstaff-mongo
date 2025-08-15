@@ -172,6 +172,19 @@ export const activityAPI = {
   getScreenshots: (timeEntryId) => apiClient.get(`/monitoring/screenshots/${timeEntryId}`),
   deleteScreenshot: (screenshotId) => apiClient.delete(`/monitoring/screenshots/${screenshotId}`),
   
+  // Admin screenshot access
+  getAdminScreenshots: (params = {}) => {
+    const queryParams = new URLSearchParams();
+    if (params.user_id) queryParams.append('user_id', params.user_id);
+    if (params.start_date) queryParams.append('start_date', params.start_date);
+    if (params.end_date) queryParams.append('end_date', params.end_date);
+    if (params.limit) queryParams.append('limit', params.limit);
+    if (params.offset) queryParams.append('offset', params.offset);
+    
+    const queryString = queryParams.toString();
+    return apiClient.get(`/monitoring/admin/screenshots${queryString ? `?${queryString}` : ''}`);
+  },
+  
   // Application tracking
   recordApplicationSwitch: (appData) => apiClient.post('/monitoring/application/switch', appData),
   

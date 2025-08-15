@@ -4,14 +4,17 @@ import { Sidebar } from "../components/Sidebar";
 import { DashboardWidget } from "../components/DashboardWidget";
 import { ProductivityChart, TimeTrackingChart } from "../components/Charts";
 import { Avatar } from "../components/Avatar";
-import { analyticsAPI } from "../api/client";
+import { ScreenshotsGallery } from "../components/ScreenshotsGallery";
+import { analyticsAPI, projectsAPI } from "../api/client";
 
 export const ReportsPage = ({ user, onLogout }) => {
+  const [activeTab, setActiveTab] = useState("analytics");
   const [dateRange, setDateRange] = useState("this-week");
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [analyticsData, setAnalyticsData] = useState(null);
   const [screenshotStats, setScreenshotStats] = useState(null);
   const [reportData, setReportData] = useState(null);
+  const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -27,17 +30,35 @@ export const ReportsPage = ({ user, onLogout }) => {
   useEffect(() => {
     fetchAnalyticsData();
   }, [dateRange, selectedTeamMember]);
+  
+  // Debug effect to monitor reportData changes
+  useEffect(() => {
+    console.log('Report data changed:', reportData);
+    if (reportData) {
+      console.log('Report data summary:', {
+        reportEntries: reportData.report_data?.length || 0,
+        summary: reportData.summary,
+        generatedAt: reportData.generated_at
+      });
+    }
+  }, [reportData]);
 
   const fetchAnalyticsData = async () => {
     try {
       // Check if user has admin access
       const hasAdminAccess = user.role === 'admin' || user.role === 'manager';
+      console.log('Fetching analytics data for user:', {
+        name: user.name,
+        role: user.role,
+        hasAdminAccess
+      });
       
       // Base API calls for all users
       const apiCalls = [
         analyticsAPI.getDashboardAnalytics(),
         analyticsAPI.getProductivityAnalytics(dateRange === 'this-week' ? 'week' : 'month'),
-        analyticsAPI.getScreenshotStats()
+        analyticsAPI.getScreenshotStats(),
+        projectsAPI.getProjects()  // Get actual projects list like dashboard does
       ];
       
       // Add team analytics only for admins/managers
@@ -46,16 +67,29 @@ export const ReportsPage = ({ user, onLogout }) => {
       }
       
       const responses = await Promise.all(apiCalls);
+      console.log('Analytics API responses:', {
+        dashboard: responses[0].data,
+        productivity: responses[1].data,
+        screenshots: responses[2].data,
+        projects: responses[3].data,
+        team: hasAdminAccess ? responses[4]?.data : null
+      });
       
       setAnalyticsData({
         dashboard: responses[0].data,
         productivity: responses[1].data,
-        team: hasAdminAccess ? responses[3]?.data : null
+        team: hasAdminAccess ? responses[4]?.data : null
       });
       
       setScreenshotStats(responses[2].data);
+      setProjects(responses[3].data || []);
     } catch (error) {
       console.error('Failed to fetch analytics data:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
     } finally {
       setLoading(false);
     }
@@ -105,12 +139,50 @@ export const ReportsPage = ({ user, onLogout }) => {
         params.user_ids = [selectedTeamMember];
       }
       
+      console.log('Generating custom report with params:', params);
       const response = await analyticsAPI.generateCustomReport(params);
+      console.log('Custom report response:', response.data);
       setReportData(response.data);
+      
+      // Show success message with data info
+      if (response.data && response.data.report_data && response.data.report_data.length > 0) {
+        alert(`Report generated successfully! Found ${response.data.report_data.length} entries.`);
+      } else {
+        alert(`Report generated but no data found for the selected criteria.
+        
+To generate reports, you need:
+1. Team members to start time tracking sessions
+2. Time entries logged with projects and tasks
+3. Activity monitoring data (screenshots, mouse/keyboard tracking)
+
+Try:
+- Starting a time tracking session from the Time Tracking page
+- Working for at least 30-60 minutes with activity monitoring enabled
+- Then generating a report for the current day/week`);
+      }
       
     } catch (error) {
       console.error('Failed to generate report:', error);
-      alert('Failed to generate report. Please try again.');
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
+      
+      let errorMessage = 'Failed to generate report. ';
+      if (error.response?.status === 401) {
+        errorMessage += 'Authentication required. Please log in again.';
+      } else if (error.response?.status === 403) {
+        errorMessage += 'You do not have permission to generate reports. Contact your administrator.';
+      } else if (error.response?.status === 404) {
+        errorMessage += 'Report endpoint not found.';
+      } else if (error.response?.data?.detail) {
+        errorMessage += error.response.data.detail;
+      } else {
+        errorMessage += 'Please try again or contact support.';
+      }
+      
+      alert(errorMessage);
     } finally {
       setGeneratingReport(false);
     }
@@ -189,7 +261,47 @@ export const ReportsPage = ({ user, onLogout }) => {
               </div>
             </div>
 
-            {/* Enhanced Filters */}
+            {/* Tab Navigation */}
+            <div className="mb-8">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-2">
+                <div className="flex space-x-2">
+                  <button
+                    onClick={() => setActiveTab("analytics")}
+                    className={`flex-1 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                      activeTab === "analytics"
+                        ? "bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-lg"
+                        : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <span>📊</span>
+                      <span>Analytics & Reports</span>
+                    </div>
+                  </button>
+                  
+                  {(user.role === 'admin' || user.role === 'manager') && (
+                    <button
+                      onClick={() => setActiveTab("screenshots")}
+                      className={`flex-1 px-4 py-3 rounded-xl font-medium transition-all duration-200 ${
+                        activeTab === "screenshots"
+                          ? "bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg"
+                          : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <span>📸</span>
+                        <span>Team Screenshots</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Tab Content */}
+            {activeTab === "analytics" && (
+              <>
+                {/* Enhanced Filters */}
             <div className="relative group mb-8">
               <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/10 to-blue-600/10 rounded-2xl transform group-hover:scale-105 transition-transform duration-200"></div>
               <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20">
@@ -231,13 +343,13 @@ export const ReportsPage = ({ user, onLogout }) => {
                         <option value="all">👥 All Members</option>
                         {analyticsData?.team?.team_stats?.map((member) => (
                           <option key={member.user_id} value={member.user_id}>
-                            👤 {member.user_name}
+                            👤 {member.user_name} ({member.total_hours?.toFixed(1) || 0}h)
                           </option>
                         )) || []}
                       </select>
                     </div>
                   )}
-                  <div className="sm:col-span-2 lg:col-span-1 flex items-end">
+                  <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-2">
                     <button 
                       onClick={generateReport}
                       disabled={generatingReport}
@@ -246,6 +358,13 @@ export const ReportsPage = ({ user, onLogout }) => {
                       <span>📊</span>
                       <span>{generatingReport ? 'Generating...' : 'Generate Report'}</span>
                     </button>
+                    {/* Debug info */}
+                    <div className="text-xs text-gray-500 text-center">
+                      Team members: {analyticsData?.team?.team_stats?.length || 0} | Projects: {projects.length}
+                      {reportData && (
+                        <div>Report entries: {reportData.report_data?.length || 0}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -276,7 +395,7 @@ export const ReportsPage = ({ user, onLogout }) => {
               />
               <DashboardWidget 
                 title="Active Projects" 
-                value={dashboardData.projects_count || 0} 
+                value={projects.length || 0} 
                 subtitle="Currently running" 
                 icon="📁" 
                 color="orange" 
@@ -498,6 +617,13 @@ export const ReportsPage = ({ user, onLogout }) => {
                 </div>
               </div>
             </div>
+              </>
+            )}
+
+            {/* Screenshots Tab */}
+            {activeTab === "screenshots" && (
+              <ScreenshotsGallery user={user} />
+            )}
           </div>
         </main>
       </div>

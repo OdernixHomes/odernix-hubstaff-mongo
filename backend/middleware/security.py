@@ -12,9 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Endpoints that are temporarily disabled for security patching
 VULNERABLE_ENDPOINTS = [
-    "/api/monitoring/application/switch",
-    "/api/monitoring/website/navigate", 
-    "/api/monitoring/settings",
+    # Advanced analytics endpoints still need security patches
     "/api/advanced-analytics/dashboard/enhanced",
     "/api/advanced-analytics/productivity/detailed",
     "/api/advanced-analytics/team/comprehensive",
@@ -25,8 +23,11 @@ VULNERABLE_ENDPOINTS = [
     "/api/advanced-analytics/alerts"
 ]
 
-# Endpoints that are partially secured (allow with warning)
-PARTIALLY_SECURED_ENDPOINTS = [
+# Endpoints that are now SECURE with proper organization isolation
+SECURE_ENDPOINTS = [
+    "/api/monitoring/application/switch",
+    "/api/monitoring/website/navigate", 
+    "/api/monitoring/settings",
     "/api/monitoring/screenshot/upload",
     "/api/monitoring/activity/update",
     "/api/monitoring/screenshots"
@@ -53,11 +54,12 @@ async def security_middleware(request: Request, call_next):
             }
         )
     
-    # Add security headers for partially secured endpoints
-    if any(path.startswith(endpoint) for endpoint in PARTIALLY_SECURED_ENDPOINTS):
+    # Add security headers for newly secure monitoring endpoints
+    if any(path.startswith(endpoint) for endpoint in SECURE_ENDPOINTS):
         response = await call_next(request)
-        response.headers["X-Security-Status"] = "PATCHED"
+        response.headers["X-Security-Status"] = "SECURE"
         response.headers["X-Security-Level"] = "ORGANIZATION_ISOLATED" 
+        response.headers["X-Security-Patch"] = "MONITORING_ENDPOINTS_SECURED"
         return response
     
     # Add security headers for all other endpoints
@@ -71,7 +73,7 @@ async def security_middleware(request: Request, call_next):
     
     # Mark secure endpoints
     if any(path.startswith(secure_path) for secure_path in [
-        "/api/auth", "/api/users", "/api/projects", "/api/time-tracking", "/api/organizations"
+        "/api/auth", "/api/users", "/api/projects", "/api/time-tracking", "/api/organizations", "/api/analytics"
     ]):
         response.headers["X-Security-Status"] = "SECURE"
         response.headers["X-Security-Level"] = "ORGANIZATION_ISOLATED"

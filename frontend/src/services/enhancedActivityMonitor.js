@@ -9,6 +9,7 @@ class EnhancedActivityMonitor {
   constructor() {
     this.isActive = false;
     this.currentTimeEntryId = null;
+    this.currentUserId = null;
     this.settings = {
       screenshotEnabled: true,
       screenshotInterval: 600000, // 10 minutes
@@ -28,6 +29,10 @@ class EnhancedActivityMonitor {
     // Intervals
     this.activityUpdateInterval = null;
     this.screenshotInterval = null;
+    
+    // Screenshot permission management
+    this.hasScreenshotPermission = false;
+    this.screenshotStream = null;
     
     // Bind methods
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -68,7 +73,7 @@ class EnhancedActivityMonitor {
       
       // Use default settings if loading fails
       this.settings = {
-        screenshotEnabled: false, // Disable screenshots when backend is unavailable
+        screenshotEnabled: true, // Re-enable screenshots - monitoring endpoints are now secure
         screenshotInterval: 600000, // 10 minutes
         applicationTracking: true,
         websiteTracking: true,
@@ -78,13 +83,14 @@ class EnhancedActivityMonitor {
     }
   }
   
-  async start(timeEntryId) {
+  async start(timeEntryId, userId = null) {
     if (this.isActive) return;
     
-    console.log('Starting enhanced activity monitor for time entry:', timeEntryId);
+    console.log('Starting enhanced activity monitor for time entry:', timeEntryId, 'user:', userId);
     
     this.isActive = true;
     this.currentTimeEntryId = timeEntryId;
+    this.currentUserId = userId;
     this.mouseEvents = 0;
     this.keyboardEvents = 0;
     this.startTime = Date.now();
@@ -101,15 +107,13 @@ class EnhancedActivityMonitor {
       this.sendActivityUpdate();
     }, 30000);
     
-    // Wait a moment for settings to load, then start screenshot capture
-    setTimeout(() => {
-      if (this.settings.screenshotEnabled) {
-        console.log('Starting screenshot capture...');
-        this.startScreenshotCapture();
-      } else {
-        console.log('Screenshot capture disabled in settings');
-      }
-    }, 2000);
+    // Request screenshot permission once at the start
+    if (this.settings.screenshotEnabled) {
+      console.log('Requesting one-time screenshot permission...');
+      this.requestScreenshotPermission();
+    } else {
+      console.log('Screenshot capture disabled in settings');
+    }
     
     // Track current application/website
     this.trackCurrentContext();
@@ -142,7 +146,14 @@ class EnhancedActivityMonitor {
       this.screenshotInterval = null;
     }
     
+    // Stop screenshot stream but keep permission for next session
+    if (this.screenshotStream) {
+      this.screenshotStream.getTracks().forEach(track => track.stop());
+      this.screenshotStream = null;
+    }
+    
     this.currentTimeEntryId = null;
+    this.currentUserId = null;
     console.log('Enhanced activity monitoring stopped');
   }
   
@@ -282,16 +293,66 @@ class EnhancedActivityMonitor {
     }
   }
   
+  async requestScreenshotPermission() {
+    try {
+      console.log('Requesting one-time screen capture permission...');
+      
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        console.warn('Screen capture not supported in this browser');
+        return;
+      }
+      
+      // Request permission once and keep the stream
+      this.screenshotStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { 
+          mediaSource: 'screen',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      
+      this.hasScreenshotPermission = true;
+      console.log('✅ Screenshot permission granted! Will capture screenshots every 10 minutes during work sessions.');
+      
+      // Start screenshot capture schedule
+      this.startScreenshotCapture();
+      
+      // Handle stream end (if user manually stops sharing)
+      this.screenshotStream.getVideoTracks()[0].addEventListener('ended', () => {
+        console.log('User stopped screen sharing');
+        this.hasScreenshotPermission = false;
+        this.screenshotStream = null;
+        if (this.screenshotInterval) {
+          clearInterval(this.screenshotInterval);
+          this.screenshotInterval = null;
+        }
+      });
+      
+    } catch (error) {
+      if (error.name === 'NotAllowedError') {
+        console.warn('❌ User denied screen capture permission. Screenshots will be disabled.');
+        this.settings.screenshotEnabled = false;
+      } else if (error.name === 'NotSupportedError') {
+        console.warn('Screen capture not supported');
+      } else {
+        console.error('Screenshot permission request failed:', error);
+      }
+      this.hasScreenshotPermission = false;
+    }
+  }
+
   async startScreenshotCapture() {
-    if (!this.settings.screenshotEnabled || !this.currentTimeEntryId) {
+    if (!this.settings.screenshotEnabled || !this.hasScreenshotPermission || !this.currentTimeEntryId) {
       console.log('Screenshot capture not started:', {
         screenshotEnabled: this.settings.screenshotEnabled,
+        hasPermission: this.hasScreenshotPermission,
         hasTimeEntryId: !!this.currentTimeEntryId
       });
       return;
     }
     
-    console.log(`Starting screenshot capture with ${this.settings.screenshotInterval / 60000} minute intervals`);
+    console.log(`✅ Starting screenshot capture with ${this.settings.screenshotInterval / 60000} minute intervals`);
     
     // Take initial screenshot after a short delay
     setTimeout(() => {
@@ -305,72 +366,43 @@ class EnhancedActivityMonitor {
   }
   
   async captureScreenshot() {
+    if (!this.hasScreenshotPermission || !this.screenshotStream) {
+      console.log('Cannot capture screenshot: no permission or stream');
+      return;
+    }
+    
     try {
-      console.log('Attempting to capture screenshot...');
+      console.log('📸 Capturing screenshot using existing permission...');
       
-      // Use Screen Capture API if available
-      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        console.log('Screen Capture API available, requesting permission...');
+      const video = document.createElement('video');
+      video.srcObject = this.screenshotStream;
+      video.play();
+      
+      video.onloadedmetadata = () => {
+        console.log('Video metadata loaded, creating canvas...');
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
         
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { 
-            mediaSource: 'screen',
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0);
         
-        console.log('Screen capture permission granted');
+        console.log(`✅ Screenshot captured: ${canvas.width}x${canvas.height}`);
         
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
-        
-        video.onloadedmetadata = () => {
-          console.log('Video metadata loaded, creating canvas...');
-          const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(video, 0, 0);
-          
-          console.log(`Screenshot captured: ${canvas.width}x${canvas.height}`);
-          
-          // Convert to blob and upload
-          canvas.toBlob(async (blob) => {
-            console.log(`Screenshot blob created: ${blob.size} bytes`);
-            await this.uploadScreenshot(blob);
-            
-            // Stop the stream
-            stream.getTracks().forEach(track => track.stop());
-          }, 'image/jpeg', 0.8);
-        };
-        
-        video.onerror = (error) => {
-          console.error('Video error:', error);
-          stream.getTracks().forEach(track => track.stop());
-        };
-        
-      } else {
-        console.warn('Screen capture not supported in this browser');
-      }
+        // Convert to blob and upload
+        canvas.toBlob(async (blob) => {
+          console.log(`📤 Screenshot blob created: ${blob.size} bytes`);
+          await this.uploadScreenshot(blob);
+        }, 'image/jpeg', 0.8);
+      };
+      
+      video.onerror = (error) => {
+        console.error('Video error during screenshot capture:', error);
+      };
       
     } catch (error) {
-      if (error.name === 'NotAllowedError') {
-        console.warn('User denied screen capture permission');
-        // Disable screenshots for this session
-        this.settings.screenshotEnabled = false;
-        if (this.screenshotInterval) {
-          clearInterval(this.screenshotInterval);
-          this.screenshotInterval = null;
-        }
-      } else if (error.name === 'NotSupportedError') {
-        console.warn('Screen capture not supported');
-      } else {
-        console.error('Screenshot capture failed:', error);
-      }
+      console.error('Screenshot capture failed:', error);
+      // Don't disable screenshots, just log the error
     }
   }
   
@@ -380,14 +412,22 @@ class EnhancedActivityMonitor {
       return;
     }
     
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const userId = this.currentUserId || 'unknown';
+    const fileName = `screenshot_${userId}_${timestamp}.jpg`;
+    
     const formData = new FormData();
-    formData.append('file', blob, `screenshot_${Date.now()}.jpg`);
+    formData.append('file', blob, fileName);
     formData.append('time_entry_id', this.currentTimeEntryId);
+    formData.append('user_id', userId);
     formData.append('activity_level', this.calculateCurrentActivityLevel());
     formData.append('screenshot_type', 'periodic');
+    formData.append('timestamp', new Date().toISOString());
     
-    console.log('Uploading screenshot...', {
+    console.log('📤 Uploading screenshot...', {
+      fileName: fileName,
       timeEntryId: this.currentTimeEntryId,
+      userId: userId,
       activityLevel: this.calculateCurrentActivityLevel(),
       blobSize: blob.size
     });
@@ -532,6 +572,24 @@ class EnhancedActivityMonitor {
   
   getSettings() {
     return { ...this.settings };
+  }
+  
+  // Get screenshot permission status
+  getScreenshotPermissionStatus() {
+    return {
+      hasPermission: this.hasScreenshotPermission,
+      streamActive: !!this.screenshotStream,
+      screenshotEnabled: this.settings.screenshotEnabled,
+      intervalMinutes: this.settings.screenshotInterval / 60000
+    };
+  }
+  
+  // Request permission again if needed
+  async requestPermissionAgain() {
+    if (!this.hasScreenshotPermission) {
+      await this.requestScreenshotPermission();
+    }
+    return this.hasScreenshotPermission;
   }
 }
 

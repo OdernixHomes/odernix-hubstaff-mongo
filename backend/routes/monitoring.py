@@ -30,8 +30,10 @@ storage = StorageService()
 async def upload_screenshot(
     file: UploadFile = File(...),
     time_entry_id: str = Form(...),
+    user_id: str = Form(...),
     activity_level: float = Form(...),
     screenshot_type: str = Form(default="periodic"),
+    timestamp: str = Form(...),
     current_user: User = Depends(get_current_user)
 ):
     """Upload a screenshot during time tracking (organization-specific)"""
@@ -105,12 +107,14 @@ async def upload_screenshot(
             }
         )
         
-        logger.info(f"Screenshot uploaded: {screenshot_id} for user {current_user.id}")
+        logger.info(f"Screenshot uploaded: {screenshot_id} for user {current_user.id} (folder: screenshots/{current_user.id}/)")
         
         return {
             "screenshot_id": screenshot_data.id,
             "thumbnail_url": thumbnail_url,
-            "message": "Screenshot uploaded successfully"
+            "screenshot_url": screenshot_url,
+            "user_folder": f"screenshots/{current_user.id}/",
+            "message": f"Screenshot uploaded successfully to user-specific folder"
         }
         
     except Exception as e:
@@ -435,6 +439,108 @@ async def get_screenshots(
         
     except Exception as e:
         logger.error(f"Get screenshots error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get screenshots"
+        )
+
+@router.get("/admin/screenshots")
+async def get_admin_screenshots(
+    user_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user)
+):
+    """Get screenshots for admin/manager view (organization-specific)"""
+    try:
+        # CRITICAL SECURITY: Only admins and managers can access this endpoint
+        if current_user.role not in ['admin', 'manager']:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only administrators and managers can view team screenshots"
+            )
+        
+        # Build query filter
+        query_filter = {
+            "organization_id": current_user.organization_id,
+            "is_deleted": False
+        }
+        
+        # Filter by specific user if provided
+        if user_id:
+            query_filter["user_id"] = user_id
+        
+        # Filter by date range if provided
+        if start_date or end_date:
+            date_filter = {}
+            if start_date:
+                try:
+                    start_dt = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+                    date_filter["$gte"] = start_dt
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid start_date format")
+            
+            if end_date:
+                try:
+                    end_dt = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+                    date_filter["$lte"] = end_dt
+                except ValueError:
+                    raise HTTPException(status_code=400, detail="Invalid end_date format")
+            
+            if date_filter:
+                query_filter["timestamp"] = date_filter
+        
+        logger.info(f"Admin {current_user.id} requesting screenshots with filter: {query_filter}")
+        
+        # CRITICAL SECURITY: Only get screenshots from same organization
+        screenshots = await DatabaseOperations.get_documents(
+            "screenshots",
+            query_filter,
+            sort=[("timestamp", -1)],
+            limit=limit,
+            skip=offset
+        )
+        
+        # Get total count for pagination
+        total_count = await DatabaseOperations.count_documents("screenshots", query_filter)
+        
+        # Get user names for display
+        user_ids = list(set(s.get("user_id") for s in screenshots if s.get("user_id")))
+        users = {}
+        if user_ids:
+            user_docs = await DatabaseOperations.get_documents(
+                "users",
+                {"id": {"$in": user_ids}, "organization_id": current_user.organization_id},
+                projection={"id": 1, "name": 1, "email": 1}
+            )
+            users = {u["id"]: u for u in user_docs}
+        
+        # Enhance screenshots with user info
+        enhanced_screenshots = []
+        for screenshot in screenshots:
+            user_info = users.get(screenshot.get("user_id"), {})
+            enhanced_screenshots.append({
+                **screenshot,
+                "user_name": user_info.get("name", "Unknown User"),
+                "user_email": user_info.get("email", "")
+            })
+        
+        return {
+            "screenshots": enhanced_screenshots,
+            "total_count": total_count,
+            "pagination": {
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + limit) < total_count
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Admin get screenshots error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get screenshots"

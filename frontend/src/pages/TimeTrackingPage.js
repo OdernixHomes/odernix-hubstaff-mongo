@@ -38,8 +38,8 @@ export const TimeTrackingPage = ({ user, onLogout }) => {
   // Monitor realtime activity when timer is active
   useEffect(() => {
     if (activeEntry) {
-      // Start enhanced activity monitoring with time entry ID
-      enhancedActivityMonitor.start(activeEntry.id);
+      // Start enhanced activity monitoring with time entry ID and user ID
+      enhancedActivityMonitor.start(activeEntry.id, user.id);
       
       // Update realtime activity stats every 10 seconds
       const updateInterval = setInterval(() => {
