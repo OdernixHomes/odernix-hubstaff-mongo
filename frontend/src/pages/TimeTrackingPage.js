@@ -3,7 +3,7 @@ import { Header } from "../components/Header";
 import { Sidebar } from "../components/Sidebar";
 import { Timer } from "../components/Timer";
 import { timeTrackingAPI, projectsAPI, usersAPI } from "../api/client";
-import { activityMonitor } from "../services/activityMonitor";
+import { enhancedActivityMonitor } from "../services/enhancedActivityMonitor";
 
 export const TimeTrackingPage = ({ user, onLogout }) => {
   const [activeEntry, setActiveEntry] = useState(null);
@@ -31,23 +31,29 @@ export const TimeTrackingPage = ({ user, onLogout }) => {
     
     // Cleanup activity monitor on unmount
     return () => {
-      activityMonitor.stop();
+      enhancedActivityMonitor.stop();
     };
   }, []);
   
   // Monitor realtime activity when timer is active
   useEffect(() => {
     if (activeEntry) {
-      // Start activity monitoring
-      activityMonitor.start((activity) => {
+      // Start enhanced activity monitoring with time entry ID
+      enhancedActivityMonitor.start(activeEntry.id);
+      
+      // Update realtime activity stats every 10 seconds
+      const updateInterval = setInterval(() => {
+        const stats = enhancedActivityMonitor.getCurrentStats();
         setRealtimeActivity({
-          mouseActivity: activity.mouseActivity,
-          keyboardActivity: activity.keyboardActivity
+          mouseActivity: stats.mouseActivity,
+          keyboardActivity: stats.keyboardActivity
         });
-      });
+      }, 10000);
+      
+      return () => clearInterval(updateInterval);
     } else {
       // Stop activity monitoring
-      activityMonitor.stop();
+      enhancedActivityMonitor.stop();
       setRealtimeActivity({
         mouseActivity: 0,
         keyboardActivity: 0

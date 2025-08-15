@@ -203,25 +203,34 @@ class EnhancedActivityMonitor {
   }
   
   async sendActivityUpdate() {
-    if (!this.isActive || !this.currentTimeEntryId) return;
+    if (!this.isActive || !this.currentTimeEntryId) {
+      console.log('Skipping activity update: not active or no time entry ID');
+      return;
+    }
     
     const now = Date.now();
     const timeSinceLastUpdate = now - this.lastActivityUpdate;
     
     // Only send update if there's been some activity or enough time has passed
     if (this.mouseEvents === 0 && this.keyboardEvents === 0 && timeSinceLastUpdate < 60000) {
+      console.log('Skipping activity update: no activity and less than 60 seconds passed');
       return;
     }
     
+    const activityData = {
+      time_entry_id: this.currentTimeEntryId,
+      keystroke_count: this.keyboardEvents,
+      mouse_clicks: this.mouseEvents,
+      mouse_movements: Math.floor(this.mouseEvents / 2),
+      active_application: this.currentApplication,
+      current_url: window.location.href
+    };
+    
+    console.log('Sending activity update:', activityData);
+    
     try {
-      await activityAPI.updateActivity({
-        time_entry_id: this.currentTimeEntryId,
-        keystroke_count: this.keyboardEvents,
-        mouse_clicks: this.mouseEvents,
-        mouse_movements: Math.floor(this.mouseEvents / 2),
-        active_application: this.currentApplication,
-        current_url: window.location.href
-      });
+      const response = await activityAPI.updateActivity(activityData);
+      console.log('Activity update sent successfully:', response.data);
       
       // Reset counters
       this.mouseEvents = 0;
@@ -230,6 +239,11 @@ class EnhancedActivityMonitor {
       
     } catch (error) {
       console.error('Failed to send activity update:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
     }
   }
   
@@ -247,21 +261,29 @@ class EnhancedActivityMonitor {
   
   async captureScreenshot() {
     try {
+      console.log('Attempting to capture screenshot...');
+      
       // Use Screen Capture API if available
       if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        console.log('Screen Capture API available, requesting permission...');
+        
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: { 
             mediaSource: 'screen',
             width: { ideal: 1280 },
             height: { ideal: 720 }
-          }
+          },
+          audio: false
         });
+        
+        console.log('Screen capture permission granted');
         
         const video = document.createElement('video');
         video.srcObject = stream;
         video.play();
         
         video.onloadedmetadata = () => {
+          console.log('Video metadata loaded, creating canvas...');
           const canvas = document.createElement('canvas');
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
@@ -269,8 +291,11 @@ class EnhancedActivityMonitor {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(video, 0, 0);
           
+          console.log(`Screenshot captured: ${canvas.width}x${canvas.height}`);
+          
           // Convert to blob and upload
           canvas.toBlob(async (blob) => {
+            console.log(`Screenshot blob created: ${blob.size} bytes`);
             await this.uploadScreenshot(blob);
             
             // Stop the stream
@@ -278,17 +303,37 @@ class EnhancedActivityMonitor {
           }, 'image/jpeg', 0.8);
         };
         
+        video.onerror = (error) => {
+          console.error('Video error:', error);
+          stream.getTracks().forEach(track => track.stop());
+        };
+        
       } else {
-        console.warn('Screen capture not supported');
+        console.warn('Screen capture not supported in this browser');
       }
       
     } catch (error) {
-      console.error('Screenshot capture failed:', error);
+      if (error.name === 'NotAllowedError') {
+        console.warn('User denied screen capture permission');
+        // Disable screenshots for this session
+        this.settings.screenshotEnabled = false;
+        if (this.screenshotInterval) {
+          clearInterval(this.screenshotInterval);
+          this.screenshotInterval = null;
+        }
+      } else if (error.name === 'NotSupportedError') {
+        console.warn('Screen capture not supported');
+      } else {
+        console.error('Screenshot capture failed:', error);
+      }
     }
   }
   
   async uploadScreenshot(blob) {
-    if (!blob || !this.currentTimeEntryId) return;
+    if (!blob || !this.currentTimeEntryId) {
+      console.error('Cannot upload screenshot: missing blob or time entry ID');
+      return;
+    }
     
     const formData = new FormData();
     formData.append('file', blob, `screenshot_${Date.now()}.jpg`);
@@ -296,10 +341,22 @@ class EnhancedActivityMonitor {
     formData.append('activity_level', this.calculateCurrentActivityLevel());
     formData.append('screenshot_type', 'periodic');
     
+    console.log('Uploading screenshot...', {
+      timeEntryId: this.currentTimeEntryId,
+      activityLevel: this.calculateCurrentActivityLevel(),
+      blobSize: blob.size
+    });
+    
     try {
-      await activityAPI.uploadScreenshot(formData);
+      const response = await activityAPI.uploadScreenshot(formData);
+      console.log('Screenshot uploaded successfully:', response.data);
     } catch (error) {
       console.error('Screenshot upload failed:', error);
+      console.error('Error details:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      });
     }
   }
   

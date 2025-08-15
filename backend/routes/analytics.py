@@ -418,18 +418,33 @@ async def generate_custom_report(
 ):
     """Generate custom analytics report"""
     try:
+        logger.info(f"Generating custom report for user {current_user.id} in org {current_user.organization_id}")
+        logger.info(f"Date range: {start_date} to {end_date}")
+        logger.info(f"User IDs filter: {user_ids}")
+        logger.info(f"Project IDs filter: {project_ids}")
+        
         start_datetime = datetime.combine(start_date, datetime.min.time())
         end_datetime = datetime.combine(end_date, datetime.max.time())
         
-        # Build query
+        # Build query with organization isolation
         match_query = {
-            "start_time": {"$gte": start_datetime, "$lte": end_datetime}
+            "start_time": {"$gte": start_datetime, "$lte": end_datetime},
+            "organization_id": current_user.organization_id
         }
         
         if user_ids:
             match_query["user_id"] = {"$in": user_ids}
         if project_ids:
             match_query["project_id"] = {"$in": project_ids}
+        
+        logger.info(f"Match query: {match_query}")
+        
+        # Check if there are any time entries at all for this organization
+        total_entries = await DatabaseOperations.count_documents(
+            "time_entries", 
+            {"organization_id": current_user.organization_id}
+        )
+        logger.info(f"Total time entries for organization: {total_entries}")
         
         # Comprehensive analytics pipeline
         analytics_pipeline = [
@@ -453,41 +468,56 @@ async def generate_custom_report(
             }
         ]
         
+        logger.info(f"Running aggregation pipeline: {analytics_pipeline}")
         detailed_data = await DatabaseOperations.aggregate("time_entries", analytics_pipeline)
+        logger.info(f"Aggregation returned {len(detailed_data)} results")
         
         # Process and format the data
         report_data = []
-        for entry in detailed_data:
-            user_info = await DatabaseOperations.get_document("users", {"id": entry["_id"]["user_id"]})
-            project_info = await DatabaseOperations.get_document("projects", {"id": entry["_id"]["project_id"]})
-            
-            report_data.append({
-                "date": entry["_id"]["date"],
-                "user_name": user_info["name"] if user_info else "Unknown",
-                "project_name": project_info["name"] if project_info else "Unknown",
-                "hours": round(entry["hours"] / 3600, 2),
-                "activity_level": round(entry["activity"] or 0, 1),
-                "entries": entry["entries"]
-            })
+        
+        if detailed_data:
+            logger.info(f"Processing {len(detailed_data)} aggregated entries")
+            for i, entry in enumerate(detailed_data):
+                logger.info(f"Processing entry {i}: {entry}")
+                try:
+                    user_info = await DatabaseOperations.get_document("users", {"id": entry["_id"]["user_id"], "organization_id": current_user.organization_id})
+                    project_info = await DatabaseOperations.get_document("projects", {"id": entry["_id"]["project_id"], "organization_id": current_user.organization_id})
+                    
+                    report_data.append({
+                        "date": entry["_id"]["date"],
+                        "user_name": user_info["name"] if user_info else "Unknown User",
+                        "project_name": project_info["name"] if project_info else "Unknown Project",
+                        "hours": round(entry["hours"] / 3600, 2),
+                        "activity_level": round(entry["activity"] or 0, 1),
+                        "entries": entry["entries"]
+                    })
+                except Exception as entry_error:
+                    logger.error(f"Error processing entry {i}: {entry_error}", exc_info=True)
+                    # Continue processing other entries
+                    continue
+        else:
+            logger.info("No time entries found for the specified criteria")
         
         # Calculate summary statistics
         total_hours = sum(entry["hours"] for entry in report_data)
         avg_activity = sum(entry["activity_level"] for entry in report_data) / len(report_data) if report_data else 0
+        
+        logger.info(f"Returning report with {len(report_data)} entries")
         
         return {
             "report_data": report_data,
             "summary": {
                 "total_hours": round(total_hours, 2),
                 "avg_activity": round(avg_activity, 1),
-                "total_entries": sum(entry["entries"] for entry in report_data),
+                "total_entries": sum(entry["entries"] for entry in report_data) if report_data else 0,
                 "date_range": f"{start_date} to {end_date}"
             },
             "generated_at": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Custom report error: {e}")
+        logger.error(f"Custom report error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate custom report"
+            detail=f"Failed to generate custom report: {str(e)}"
         )

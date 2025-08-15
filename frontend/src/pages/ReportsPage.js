@@ -11,7 +11,9 @@ export const ReportsPage = ({ user, onLogout }) => {
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [analyticsData, setAnalyticsData] = useState(null);
   const [screenshotStats, setScreenshotStats] = useState(null);
+  const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [generatingReport, setGeneratingReport] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const toggleMobileSidebar = () => {
@@ -59,6 +61,61 @@ export const ReportsPage = ({ user, onLogout }) => {
     }
   };
 
+  const generateReport = async () => {
+    if (user.role !== 'admin' && user.role !== 'manager') {
+      alert('Only administrators and managers can generate custom reports.');
+      return;
+    }
+    
+    setGeneratingReport(true);
+    try {
+      // Calculate date range based on selection
+      let startDate, endDate;
+      const now = new Date();
+      
+      switch (dateRange) {
+        case 'today':
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+          break;
+        case 'this-week':
+          const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+          startDate = new Date(startOfWeek.getFullYear(), startOfWeek.getMonth(), startOfWeek.getDate());
+          endDate = new Date();
+          break;
+        case 'this-month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+          endDate = new Date();
+          break;
+        case 'last-month':
+          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+          break;
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+          endDate = new Date();
+      }
+      
+      const params = {
+        start_date: startDate.toISOString().split('T')[0],
+        end_date: endDate.toISOString().split('T')[0]
+      };
+      
+      if (selectedTeamMember !== 'all') {
+        params.user_ids = [selectedTeamMember];
+      }
+      
+      const response = await analyticsAPI.generateCustomReport(params);
+      setReportData(response.data);
+      
+    } catch (error) {
+      console.error('Failed to generate report:', error);
+      alert('Failed to generate report. Please try again.');
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-violet-50 via-purple-50 to-fuchsia-50">
@@ -90,7 +147,7 @@ export const ReportsPage = ({ user, onLogout }) => {
     );
   }
 
-  const reportData = analyticsData?.dashboard?.user_stats || {
+  const dashboardData = analyticsData?.dashboard?.user_stats || {
     total_hours: 0,
     avg_activity: 0,
     projects_count: 0
@@ -182,11 +239,12 @@ export const ReportsPage = ({ user, onLogout }) => {
                   )}
                   <div className="sm:col-span-2 lg:col-span-1 flex items-end">
                     <button 
-                      onClick={fetchAnalyticsData}
-                      className="bg-gradient-to-r from-violet-500 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-violet-600 hover:to-purple-700 w-full font-medium transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 text-sm"
+                      onClick={generateReport}
+                      disabled={generatingReport}
+                      className="bg-gradient-to-r from-violet-500 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-violet-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed w-full font-medium transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center space-x-2 text-sm"
                     >
                       <span>📊</span>
-                      <span>Generate Report</span>
+                      <span>{generatingReport ? 'Generating...' : 'Generate Report'}</span>
                     </button>
                   </div>
                 </div>
@@ -197,28 +255,28 @@ export const ReportsPage = ({ user, onLogout }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <DashboardWidget 
                 title="Total Hours" 
-                value={`${(reportData.total_hours || 0).toFixed(2)}h`} 
+                value={`${(dashboardData.total_hours || 0).toFixed(2)}h`} 
                 subtitle="This period" 
                 icon="⏰" 
                 color="blue" 
               />
               <DashboardWidget 
                 title="Average Daily" 
-                value={`${((reportData.total_hours || 0) / 7).toFixed(1)}h`} 
+                value={`${((dashboardData.total_hours || 0) / 7).toFixed(1)}h`} 
                 subtitle="Per day" 
                 icon="📊" 
                 color="green" 
               />
               <DashboardWidget 
                 title="Productivity" 
-                value={`${Math.round(reportData.avg_activity || 0)}%`} 
+                value={`${Math.round(dashboardData.avg_activity || 0)}%`} 
                 subtitle="Average activity" 
                 icon="📈" 
                 color="purple" 
               />
               <DashboardWidget 
                 title="Active Projects" 
-                value={reportData.projects_count || 0} 
+                value={dashboardData.projects_count || 0} 
                 subtitle="Currently running" 
                 icon="📁" 
                 color="orange" 
@@ -333,30 +391,30 @@ export const ReportsPage = ({ user, onLogout }) => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/20">
-                        {(user.role === 'admin' || user.role === 'manager') && analyticsData?.team?.team_stats?.map((member, index) => (
-                          <tr key={member.user_id} className="hover:bg-white/60 transition-colors duration-200">
+                        {(user.role === 'admin' || user.role === 'manager') && reportData?.report_data?.map((entry, index) => (
+                          <tr key={`${entry.user_name}-${entry.date}-${index}`} className="hover:bg-white/60 transition-colors duration-200">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {new Date(Date.now() - index * 86400000).toLocaleDateString()}
+                              {new Date(entry.date).toLocaleDateString()}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center space-x-3">
-                                <Avatar user={{name: member.user_name}} size="sm" />
-                                <span className="text-sm font-semibold text-gray-900">{member.user_name}</span>
+                                <Avatar user={{name: entry.user_name}} size="sm" />
+                                <span className="text-sm font-semibold text-gray-900">{entry.user_name}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-600">
-                              Project {index + 1}
+                              {entry.project_name}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="text-sm font-bold text-blue-600">{(member.total_hours || 0).toFixed(2)}h</span>
+                              <span className="text-sm font-bold text-blue-600">{entry.hours.toFixed(2)}h</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center space-x-2">
                                 <div className={`w-2 h-2 rounded-full ${
-                                  (member.avg_activity || 0) > 80 ? 'bg-green-500' :
-                                  (member.avg_activity || 0) > 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                  entry.activity_level > 80 ? 'bg-green-500' :
+                                  entry.activity_level > 60 ? 'bg-yellow-500' : 'bg-red-500'
                                 }`}></div>
-                                <span className="text-sm font-bold text-purple-600">{Math.round(member.avg_activity || 0)}%</span>
+                                <span className="text-sm font-bold text-purple-600">{Math.round(entry.activity_level)}%</span>
                               </div>
                             </td>
                           </tr>
@@ -368,10 +426,14 @@ export const ReportsPage = ({ user, onLogout }) => {
                                   <span className="text-2xl">📊</span>
                                 </div>
                                 <p className="text-gray-500 font-medium">
-                                  {(user.role === 'admin' || user.role === 'manager') ? 'No data available' : 'Team data access restricted'}
+                                  {(user.role === 'admin' || user.role === 'manager') ? 
+                                    (reportData ? 'No data in report' : 'No report generated') : 
+                                    'Team data access restricted'}
                                 </p>
                                 <p className="text-sm text-gray-400">
-                                  {(user.role === 'admin' || user.role === 'manager') ? 'Generate a report to view analytics data' : 'Contact your administrator for team analytics access'}
+                                  {(user.role === 'admin' || user.role === 'manager') ? 
+                                    (reportData ? 'Try a different date range or team member' : 'Click "Generate Report" to create a detailed report') : 
+                                    'Contact your administrator for team analytics access'}
                                 </p>
                               </div>
                             </td>
@@ -383,34 +445,34 @@ export const ReportsPage = ({ user, onLogout }) => {
                   
                   {/* Mobile Card View */}
                   <div className="lg:hidden space-y-4 p-4">
-                    {(user.role === 'admin' || user.role === 'manager') && analyticsData?.team?.team_stats?.length > 0 ? analyticsData.team.team_stats.map((member, index) => (
-                      <div key={member.user_id} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
+                    {(user.role === 'admin' || user.role === 'manager') && reportData?.report_data?.length > 0 ? reportData.report_data.map((entry, index) => (
+                      <div key={`${entry.user_name}-${entry.date}-${index}`} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
                         <div className="flex flex-col space-y-3">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3 min-w-0 flex-1">
-                              <Avatar user={{name: member.user_name}} size="sm" />
+                              <Avatar user={{name: entry.user_name}} size="sm" />
                               <div className="min-w-0">
-                                <h4 className="text-sm font-semibold text-gray-900 truncate">{member.user_name}</h4>
-                                <p className="text-xs text-gray-500">{new Date(Date.now() - index * 86400000).toLocaleDateString()}</p>
+                                <h4 className="text-sm font-semibold text-gray-900 truncate">{entry.user_name}</h4>
+                                <p className="text-xs text-gray-500">{new Date(entry.date).toLocaleDateString()}</p>
                               </div>
                             </div>
                             <div className="flex items-center space-x-2">
                               <div className={`w-2 h-2 rounded-full ${
-                                (member.avg_activity || 0) > 80 ? 'bg-green-500' :
-                                (member.avg_activity || 0) > 60 ? 'bg-yellow-500' : 'bg-red-500'
+                                entry.activity_level > 80 ? 'bg-green-500' :
+                                entry.activity_level > 60 ? 'bg-yellow-500' : 'bg-red-500'
                               }`}></div>
-                              <span className="text-sm font-bold text-purple-600">{Math.round(member.avg_activity || 0)}%</span>
+                              <span className="text-sm font-bold text-purple-600">{Math.round(entry.activity_level)}%</span>
                             </div>
                           </div>
                           
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
                               <span className="text-xs">📁</span>
-                              <span className="text-xs text-gray-500">Project {index + 1}</span>
+                              <span className="text-xs text-gray-500">{entry.project_name}</span>
                             </div>
                             <div className="flex items-center space-x-1">
                               <span className="text-xs">⏰</span>
-                              <span className="text-sm font-bold text-blue-600">{(member.total_hours || 0).toFixed(2)}h</span>
+                              <span className="text-sm font-bold text-blue-600">{entry.hours.toFixed(2)}h</span>
                             </div>
                           </div>
                         </div>
@@ -421,10 +483,14 @@ export const ReportsPage = ({ user, onLogout }) => {
                           <span className="text-2xl">📊</span>
                         </div>
                         <p className="text-gray-500 font-medium">
-                          {(user.role === 'admin' || user.role === 'manager') ? 'No data available' : 'Team data access restricted'}
+                          {(user.role === 'admin' || user.role === 'manager') ? 
+                            (reportData ? 'No data in report' : 'No report generated') : 
+                            'Team data access restricted'}
                         </p>
                         <p className="text-sm text-gray-400 text-center">
-                          {(user.role === 'admin' || user.role === 'manager') ? 'Generate a report to view analytics data' : 'Contact your administrator for team analytics access'}
+                          {(user.role === 'admin' || user.role === 'manager') ? 
+                            (reportData ? 'Try a different date range or team member' : 'Click "Generate Report" to create a detailed report') : 
+                            'Contact your administrator for team analytics access'}
                         </p>
                       </div>
                     )}
