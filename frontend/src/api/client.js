@@ -74,6 +74,7 @@ export const organizationAPI = {
   getStats: () => apiClient.get('/organizations/stats'),
   getMembers: () => apiClient.get('/organizations/members'),
   inviteUser: (inviteData) => apiClient.post('/organizations/invite', inviteData),
+  getInvitations: () => apiClient.get('/organizations/invitations'),
   getAuditLog: (params = {}) => apiClient.get('/organizations/audit-log', { params }),
 };
 

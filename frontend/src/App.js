@@ -91,6 +91,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/accept-invite" element={<AcceptInvitePage onLogin={handleLogin} />} />
+          <Route path="/register" element={<AcceptInvitePage onLogin={handleLogin} />} />
           
           {/* Protected Routes */}
           <Route path="/dashboard" element={

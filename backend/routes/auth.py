@@ -198,9 +198,13 @@ async def invite_user():
 async def accept_invitation(accept_data: AcceptInvite):
     """Accept an organization invitation and create user account"""
     try:
+        logger.info(f"Accept invitation request - token: {accept_data.token[:8]}..., name: {accept_data.name}")
+        logger.info(f"Full accept data: token exists: {bool(accept_data.token)}, name: '{accept_data.name}', password length: {len(accept_data.password) if accept_data.password else 0}")
+        
         # Find invitation with organization context
         invitation_data = await DatabaseOperations.get_document("invitations", {"token": accept_data.token})
         if not invitation_data:
+            logger.error(f"Invitation not found for token: {accept_data.token}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invalid invitation token"
@@ -209,7 +213,10 @@ async def accept_invitation(accept_data: AcceptInvite):
         invitation = Invitation(**invitation_data)
         
         # Check if invitation is expired
-        if datetime.utcnow() > invitation.expires_at:
+        current_time = datetime.utcnow()
+        logger.info(f"Invitation expires at: {invitation.expires_at}, current time: {current_time}")
+        if current_time > invitation.expires_at:
+            logger.error(f"Invitation expired - expires: {invitation.expires_at}, now: {current_time}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invitation has expired"
@@ -225,17 +232,29 @@ async def accept_invitation(accept_data: AcceptInvite):
         # CRITICAL SECURITY: Check if user already exists in ANY organization
         existing_user = await DatabaseOperations.get_document("users", {"email": invitation.email})
         if existing_user:
+            logger.error(f"User already exists with email: {invitation.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this email already exists in another organization"
             )
         
-        # Validate organization still exists and is active
+        # Validate organization still exists and is available
         organization = await DatabaseOperations.get_document(
             "organizations", 
             {"id": invitation.organization_id}
         )
-        if not organization or organization.get("status") != "active":
+        if not organization:
+            logger.error(f"Organization not found: {invitation.organization_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Organization not found"
+            )
+        
+        # Allow active and trial organizations to accept new users
+        valid_statuses = ["active", "trial"]
+        org_status = organization.get("status")
+        if org_status not in valid_statuses:
+            logger.error(f"Organization status not valid for new users: {org_status}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Organization is not available for new users"
@@ -298,9 +317,11 @@ async def accept_invitation(accept_data: AcceptInvite):
         raise
     except Exception as e:
         logger.error(f"Accept invitation error: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to accept invitation"
+            detail=f"Failed to accept invitation: {str(e)}"
         )
 
 @router.get("/invitations", deprecated=True)

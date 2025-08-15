@@ -343,9 +343,9 @@ async def get_productivity_analytics(
         
         # Calculate productivity score
         total_hours = sum(point["hours"] for point in productivity_chart)
-        avg_activity = sum(point["activity_level"] for point in productivity_chart) / len(productivity_chart) if productivity_chart else 0
+        avg_activity = sum(point["activity_level"] for point in productivity_chart) / max(len(productivity_chart), 1)
         
-        productivity_score = min(100, (avg_activity * 0.7 + (total_hours / (len(productivity_chart) * 8)) * 100 * 0.3))
+        productivity_score = min(100, (avg_activity * 0.7 + (total_hours / max(len(productivity_chart) * 8, 1)) * 100 * 0.3))
         
         return {
             "productivity_chart": productivity_chart,

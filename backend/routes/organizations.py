@@ -329,14 +329,18 @@ async def invite_user_to_organization(
         
         await DatabaseOperations.create_document("invitations", invitation.model_dump())
         
+        # Create invite link (pointing to frontend)
+        from config import settings
+        frontend_url = settings.FRONTEND_URL
+        invite_link = f"{frontend_url}/accept-invite?token={invitation.token}"
+        
         # Send invitation email
         try:
-            await email_service.send_organization_invitation(
+            await email_service.send_invitation_email(
                 invite_data.email,
-                organization["name"],
                 current_user.name,
-                invitation.token,
-                invite_data.message
+                invite_data.role,
+                invite_link
             )
         except Exception as e:
             logger.error(f"Failed to send invitation email: {e}")
@@ -351,7 +355,11 @@ async def invite_user_to_organization(
             {"invited_email": invite_data.email, "role": invite_data.role}
         )
         
-        return {"message": f"Invitation sent to {invite_data.email}"}
+        return {
+            "message": f"Invitation sent to {invite_data.email}",
+            "invite_link": invite_link,
+            "expires_at": invitation.expires_at.isoformat()
+        }
         
     except HTTPException:
         raise
@@ -360,6 +368,71 @@ async def invite_user_to_organization(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send invitation"
+        )
+
+@router.get("/invitations")
+async def get_organization_invitations(
+    current_user: User = Depends(get_organization_admin)
+):
+    """Get organization invitations (admin only)"""
+    try:
+        invitations = await DatabaseOperations.get_documents(
+            "invitations",
+            {"organization_id": current_user.organization_id},
+            sort=[("created_at", -1)]
+        )
+        
+        # Transform invitations to match UI expectations
+        formatted_invitations = []
+        for invitation in invitations:
+            # Determine status
+            current_time = datetime.utcnow()
+            status = "pending"
+            if invitation.get("accepted", False):
+                status = "accepted"
+            elif invitation.get("expires_at"):
+                expires_at = invitation["expires_at"]
+                if isinstance(expires_at, str):
+                    try:
+                        expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                    except ValueError:
+                        expires_at = datetime.utcnow()  # Default to now if parsing fails
+                if expires_at < current_time:
+                    status = "expired"
+            
+            # Create invite link (pointing to frontend)
+            from config import settings
+            frontend_url = settings.FRONTEND_URL
+            invite_link = f"{frontend_url}/accept-invite?token={invitation['token']}"
+            
+            # Ensure dates are ISO formatted strings
+            created_at = invitation["created_at"]
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            expires_at_formatted = invitation["expires_at"]
+            if isinstance(expires_at_formatted, datetime):
+                expires_at_formatted = expires_at_formatted.isoformat()
+            
+            formatted_invitations.append({
+                "id": invitation["id"],
+                "email": invitation["email"],
+                "role": invitation["role"],
+                "status": status,
+                "created_at": created_at,
+                "expires_at": expires_at_formatted,
+                "invite_link": invite_link
+            })
+        
+        return formatted_invitations
+        
+    except Exception as e:
+        logger.error(f"Get invitations error: {e}")
+        import traceback
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get invitations: {str(e)}"
         )
 
 @router.get("/audit-log")

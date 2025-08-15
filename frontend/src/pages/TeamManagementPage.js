@@ -3,7 +3,7 @@ import { Header } from "../components/Header";
 import { Sidebar } from "../components/Sidebar";
 import { DashboardWidget } from "../components/DashboardWidget";
 import { Avatar } from "../components/Avatar";
-import { usersAPI, authAPI } from "../api/client";
+import { usersAPI, authAPI, organizationAPI } from "../api/client";
 
 export const TeamManagementPage = ({ user, onLogout }) => {
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -42,7 +42,7 @@ export const TeamManagementPage = ({ user, onLogout }) => {
       
       // Only fetch invitations for admins
       if (user.role === 'admin') {
-        requests.push(authAPI.getAllInvitations());
+        requests.push(organizationAPI.getInvitations());
       }
       
       const responses = await Promise.all(requests);
@@ -52,9 +52,9 @@ export const TeamManagementPage = ({ user, onLogout }) => {
         stats: responses[1].data
       });
       
-      // Set invitations only if user is admin
+      // Set invitations data only if user is admin
       if (user.role === 'admin' && responses[2]) {
-        setAllInvitations(responses[2].data);
+        setAllInvitations(responses[2].data || []);
       } else {
         setAllInvitations([]);
       }
@@ -68,7 +68,7 @@ export const TeamManagementPage = ({ user, onLogout }) => {
   const handleInviteUser = async (e) => {
     e.preventDefault();
     try {
-      const response = await authAPI.inviteUser({ 
+      const response = await organizationAPI.inviteUser({ 
         email: inviteEmail, 
         role: inviteRole 
       });
@@ -144,7 +144,7 @@ export const TeamManagementPage = ({ user, onLogout }) => {
           isMobileOpen={isMobileSidebarOpen}
           onCloseMobile={closeMobileSidebar}
         />
-          <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">
                 <div className="flex flex-col items-center space-y-4">
@@ -175,23 +175,23 @@ export const TeamManagementPage = ({ user, onLogout }) => {
           onCloseMobile={closeMobileSidebar}
         />
         
-        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
             {/* Enhanced Header Section */}
             <div className="mb-8 relative">
               <div className="absolute inset-0 bg-gradient-to-r from-rose-600/5 to-pink-600/5 rounded-2xl"></div>
-              <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-                <div className="flex justify-between items-center">
+              <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/20 shadow-lg">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <div className="w-10 h-10 bg-gradient-to-r from-rose-500 to-pink-600 rounded-xl flex items-center justify-center">
-                        <span className="text-white text-xl">👥</span>
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-rose-500 to-pink-600 rounded-xl flex items-center justify-center">
+                        <span className="text-white text-lg sm:text-xl">👥</span>
                       </div>
-                      <h1 className="text-3xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
+                      <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
                         Team Management
                       </h1>
                     </div>
-                    <p className="text-gray-600 text-lg">
+                    <p className="text-gray-600 text-sm sm:text-lg">
                       {user.role === 'admin' 
                         ? "Manage your team members and their roles, " 
                         : "View your team members and their current status, "}
@@ -201,7 +201,7 @@ export const TeamManagementPage = ({ user, onLogout }) => {
                   {user.role === 'admin' && (
                     <button
                       onClick={() => setShowInviteModal(true)}
-                      className="bg-gradient-to-r from-rose-500 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-rose-600 hover:to-pink-700 flex items-center transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
+                      className="bg-gradient-to-r from-rose-500 to-pink-600 text-white px-4 sm:px-6 py-3 rounded-xl hover:from-rose-600 hover:to-pink-700 flex items-center transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl font-medium text-sm sm:text-base w-full sm:w-auto justify-center"
                     >
                       <span className="mr-2 text-lg">➕</span>
                       Invite Member
@@ -252,7 +252,8 @@ export const TeamManagementPage = ({ user, onLogout }) => {
                       </div>
                     </div>
                   </div>
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gradient-to-r from-amber-50 to-orange-50">
                         <tr>
@@ -318,6 +319,70 @@ export const TeamManagementPage = ({ user, onLogout }) => {
                       </tbody>
                     </table>
                   </div>
+                  
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden space-y-4 p-4">
+                    {allInvitations.map((invite) => (
+                      <div key={invite.id} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
+                        <div className="flex flex-col space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm">📧</span>
+                              <span className="font-medium text-gray-900 text-sm">{invite.email}</span>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              invite.role === 'manager'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {invite.role}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-sm">📊</span>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                invite.status === 'accepted' 
+                                  ? 'bg-green-100 text-green-800'
+                                  : invite.status === 'expired'
+                                  ? 'bg-red-100 text-red-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {invite.status}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              📅 {new Date(invite.created_at).toLocaleDateString()}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="text-xs text-gray-500">
+                              ⏰ Expires: {new Date(invite.expires_at).toLocaleDateString()}
+                            </div>
+                            <div>
+                              {invite.status === 'pending' && (
+                                <button
+                                  onClick={() => copyInviteLink(invite.invite_link)}
+                                  className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-200 shadow-lg flex items-center space-x-1"
+                                >
+                                  <span>📋</span>
+                                  <span>Copy</span>
+                                </button>
+                              )}
+                              {invite.status === 'accepted' && (
+                                <span className="text-green-600 text-xs font-medium">✓ Joined</span>
+                              )}
+                              {invite.status === 'expired' && (
+                                <span className="text-red-600 text-xs font-medium">⚠ Expired</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -336,7 +401,8 @@ export const TeamManagementPage = ({ user, onLogout }) => {
                     </h3>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gradient-to-r from-blue-50 to-indigo-50">
                       <tr>
@@ -407,6 +473,70 @@ export const TeamManagementPage = ({ user, onLogout }) => {
                     </tbody>
                   </table>
                 </div>
+                
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4 p-4">
+                  {teamData.members.map((member) => (
+                    <div key={member.id} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
+                      <div className="flex items-start space-x-3">
+                        <Avatar user={member} size="md" className="flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-900 truncate">{member.name}</h4>
+                              <p className="text-xs text-gray-500 truncate">{member.email}</p>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              member.role === 'admin' 
+                                ? 'bg-red-100 text-red-800'
+                                : member.role === 'manager'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {member.role}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs">📊</span>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                member.status === 'active' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {member.status}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <span className="text-xs text-gray-500">⏰</span>
+                              <span className="text-sm font-bold text-blue-600">{(member.weekly_hours || 0).toFixed(1)}h</span>
+                            </div>
+                          </div>
+                          
+                          {user.role === 'admin' && (
+                            <div className="flex space-x-2">
+                              <button 
+                                onClick={() => handleEditMember(member)}
+                                className="flex-1 bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:from-blue-600 hover:to-cyan-700 transform hover:scale-105 transition-all duration-200 shadow-sm flex items-center justify-center space-x-1"
+                              >
+                                <span>✏️</span>
+                                <span>Edit</span>
+                              </button>
+                              <button 
+                                onClick={() => handleRemoveMember(member)}
+                                className="flex-1 bg-gradient-to-r from-red-500 to-pink-600 text-white px-3 py-2 rounded-lg text-xs font-medium hover:from-red-600 hover:to-pink-700 transform hover:scale-105 transition-all duration-200 shadow-sm flex items-center justify-center space-x-1"
+                              >
+                                <span>🗑️</span>
+                                <span>Remove</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -416,56 +546,56 @@ export const TeamManagementPage = ({ user, onLogout }) => {
       {/* Enhanced Invite Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/20 transform transition-all duration-300">
+          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl border border-white/20 transform transition-all duration-300 max-h-[90vh] overflow-y-auto">
             <div className="absolute inset-0 bg-gradient-to-r from-rose-600/5 to-pink-600/5 rounded-2xl"></div>
             <div className="relative">
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-8 h-8 bg-gradient-to-r from-rose-500 to-pink-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white text-sm">➕</span>
+              <div className="flex items-center space-x-3 mb-4 sm:mb-6">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-rose-500 to-pink-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-xs sm:text-sm">➕</span>
                 </div>
-                <h3 className="text-xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
+                <h3 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-rose-600 to-pink-600 bg-clip-text text-transparent">
                   Invite Team Member
                 </h3>
               </div>
-              <form onSubmit={handleInviteUser}>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+              <form onSubmit={handleInviteUser} className="space-y-4">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Email Address
                   </label>
                   <input
                     type="email"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
                     required
                     placeholder="colleague@company.com"
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                     Role
                   </label>
                   <select
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
                     required
                   >
                     <option value="user">User</option>
                     <option value="manager">Manager</option>
                   </select>
                 </div>
-                <div className="flex justify-end space-x-3">
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setShowInviteModal(false)}
-                    className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200 order-2 sm:order-1"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-rose-500 to-pink-600 text-white px-6 py-3 rounded-xl hover:from-rose-600 hover:to-pink-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg flex items-center space-x-2"
+                    className="w-full sm:w-auto bg-gradient-to-r from-rose-500 to-pink-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-rose-600 hover:to-pink-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg flex items-center justify-center space-x-2 text-sm order-1 sm:order-2"
                   >
                     <span>📧</span>
                     <span>Send Invitation</span>

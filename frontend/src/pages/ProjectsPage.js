@@ -221,7 +221,7 @@ export const ProjectsPage = ({ user, onLogout }) => {
             isMobileOpen={isMobileSidebarOpen}
             onCloseMobile={closeMobileSidebar}
           />
-          <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
+          <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex items-center justify-center h-64">
                 <div className="flex flex-col items-center space-y-4">
@@ -252,30 +252,30 @@ export const ProjectsPage = ({ user, onLogout }) => {
           onCloseMobile={closeMobileSidebar}
         />
         
-        <main className="flex-1 lg:ml-64 p-4 sm:p-6 lg:p-8">
+        <main className="flex-1 lg:ml-64 p-3 sm:p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
             {/* Enhanced Header Section */}
             <div className="mb-8 relative">
               <div className="absolute inset-0 bg-gradient-to-r from-emerald-600/5 to-teal-600/5 rounded-2xl"></div>
-              <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-6 border border-white/20 shadow-lg">
-                <div className="flex justify-between items-center">
+              <div className="relative bg-white/70 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-white/20 shadow-lg">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <div className="flex items-center space-x-3 mb-2">
-                      <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                        <span className="text-white text-xl">📁</span>
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+                        <span className="text-white text-lg sm:text-xl">📁</span>
                       </div>
-                      <h1 className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                      <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                         Projects
                       </h1>
                     </div>
-                    <p className="text-gray-600 text-lg">
+                    <p className="text-gray-600 text-sm sm:text-lg">
                       Manage your projects and track their progress, <span className="font-semibold text-emerald-600">{user.name}</span>.
                     </p>
                   </div>
                   {(user.role === 'admin' || user.role === 'manager') && (
                     <button
                       onClick={() => setShowCreateModal(true)}
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-6 py-3 rounded-xl hover:from-emerald-600 hover:to-teal-700 flex items-center transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl"
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 sm:px-6 py-3 rounded-xl hover:from-emerald-600 hover:to-teal-700 flex items-center transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl font-medium text-sm sm:text-base w-full sm:w-auto justify-center"
                     >
                       <span className="mr-2 text-lg">➕</span>
                       New Project
@@ -286,7 +286,7 @@ export const ProjectsPage = ({ user, onLogout }) => {
             </div>
 
             {/* Enhanced Projects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {projects.map((project, index) => {
                 const gradientColors = [
                   { gradient: "from-blue-500 to-cyan-600", lightGradient: "from-blue-600/10 to-cyan-600/10", textColor: "text-blue-600" },
@@ -300,15 +300,15 @@ export const ProjectsPage = ({ user, onLogout }) => {
                 return (
                   <div key={project.id} className="relative group cursor-pointer">
                     <div className={`absolute inset-0 bg-gradient-to-r ${colorScheme.lightGradient} rounded-2xl transform group-hover:scale-105 transition-transform duration-200`}></div>
-                    <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 border border-white/20 hover:shadow-2xl transition-all duration-300">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center space-x-3">
-                          <div className={`w-10 h-10 bg-gradient-to-r ${colorScheme.gradient} rounded-xl flex items-center justify-center shadow-lg`}>
-                            <span className="text-white text-lg">📊</span>
+                    <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-4 sm:p-6 border border-white/20 hover:shadow-2xl transition-all duration-300">
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 sm:gap-0 mb-4">
+                        <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r ${colorScheme.gradient} rounded-xl flex items-center justify-center shadow-lg flex-shrink-0`}>
+                            <span className="text-white text-sm sm:text-lg">📊</span>
                           </div>
-                          <h3 className={`text-lg font-bold ${colorScheme.textColor}`}>{project.name}</h3>
+                          <h3 className={`text-base sm:text-lg font-bold ${colorScheme.textColor} truncate`}>{project.name}</h3>
                         </div>
-                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                        <span className={`px-2 sm:px-3 py-1 text-xs font-medium rounded-full self-start ${
                           project.status === 'active' 
                             ? 'bg-green-100 text-green-800 border border-green-200' 
                             : 'bg-gray-100 text-gray-800 border border-gray-200'
@@ -339,27 +339,29 @@ export const ProjectsPage = ({ user, onLogout }) => {
                         </div>
                       </div>
                       
-                      <div className="flex justify-between items-center">
-                        <div className="flex space-x-3">
+                      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0">
+                        <div className="flex space-x-3 w-full sm:w-auto">
                           <button 
                             onClick={() => handleViewProject(project.id)}
-                            className={`${colorScheme.textColor} hover:opacity-80 text-sm font-medium transition-opacity duration-200`}
+                            className={`${colorScheme.textColor} hover:opacity-80 text-xs sm:text-sm font-medium transition-opacity duration-200 flex items-center space-x-1`}
                           >
-                            👁️ View
+                            <span>👁️</span>
+                            <span>View</span>
                           </button>
                           {(user.role === 'admin' || user.role === 'manager') && (
                             <button 
                               onClick={() => handleEditProject(project)}
-                              className="text-gray-600 hover:text-gray-800 text-sm font-medium transition-colors duration-200"
+                              className="text-gray-600 hover:text-gray-800 text-xs sm:text-sm font-medium transition-colors duration-200 flex items-center space-x-1"
                             >
-                              ✏️ Edit
+                              <span>✏️</span>
+                              <span>Edit</span>
                             </button>
                           )}
                         </div>
                         {(user.role === 'admin' || user.role === 'manager') && (
                           <button 
                             onClick={() => handleAddTask(project.id)}
-                            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:from-green-600 hover:to-emerald-700 flex items-center transform hover:scale-105 transition-all duration-200 shadow-lg"
+                            className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-medium hover:from-green-600 hover:to-emerald-700 flex items-center justify-center transform hover:scale-105 transition-all duration-200 shadow-lg w-full sm:w-auto"
                           >
                             <span className="mr-1">+</span>
                             Add Task
@@ -391,7 +393,8 @@ export const ProjectsPage = ({ user, onLogout }) => {
               <div className="relative group">
                 <div className="absolute inset-0 bg-gradient-to-r from-slate-600/5 to-gray-600/5 rounded-2xl"></div>
                 <div className="relative bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20">
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full">
                     <thead className="bg-gradient-to-r from-gray-50 to-slate-50">
                       <tr>
@@ -453,6 +456,55 @@ export const ProjectsPage = ({ user, onLogout }) => {
                     </tbody>
                     </table>
                   </div>
+                  
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden space-y-4 p-4">
+                    {tasks.length > 0 ? tasks.map((task) => (
+                      <div key={task.id} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
+                        <div className="flex flex-col space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="min-w-0 flex-1">
+                              <h4 className="text-sm font-medium text-gray-900 truncate">📝 {task.title}</h4>
+                              <p className="text-xs text-gray-500 mt-1">📁 {projects.find(p => p.id === task.project_id)?.name || 'Unknown Project'}</p>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ml-2 ${
+                              task.priority === 'high' 
+                                ? 'bg-red-100 text-red-800'
+                                : task.priority === 'medium'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {task.priority}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-xs">👤</span>
+                              <span className="text-xs text-gray-500">{getUserName(task.assignee_id)}</span>
+                            </div>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              task.status === 'completed' 
+                                ? 'bg-green-100 text-green-800'
+                                : task.status === 'in-progress'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {task.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )) : (
+                      <div className="flex flex-col items-center space-y-3 py-8">
+                        <div className="w-16 h-16 bg-gradient-to-r from-gray-200 to-slate-300 rounded-2xl flex items-center justify-center">
+                          <span className="text-2xl">📋</span>
+                        </div>
+                        <p className="text-gray-500 font-medium">No tasks found</p>
+                        <p className="text-sm text-gray-400 text-center">Tasks will appear here once they're created</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -462,8 +514,8 @@ export const ProjectsPage = ({ user, onLogout }) => {
 
       {/* Create Project Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 modal-backdrop p-4">
+          <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Project</h3>
             <form onSubmit={handleCreateProject}>
               <div className="space-y-4">
@@ -597,17 +649,17 @@ export const ProjectsPage = ({ user, onLogout }) => {
                   ))}
                 </div>
               </div>
-              <div className="flex justify-end space-x-3 mt-6">
+              <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200"
+                  className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200 order-2 sm:order-1"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-6 py-3 rounded-xl hover:from-emerald-600 hover:to-teal-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg"
+                  className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-emerald-600 hover:to-teal-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg text-sm order-1 sm:order-2"
                 >
                   Create Project
                 </button>
@@ -622,7 +674,7 @@ export const ProjectsPage = ({ user, onLogout }) => {
       {/* Enhanced Add Task Modal */}
       {showTaskModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl p-6 w-full max-w-md shadow-2xl border border-white/20 transform transition-all duration-300">
+          <div className="relative bg-white/95 backdrop-blur-sm rounded-2xl p-4 sm:p-6 w-full max-w-md shadow-2xl border border-white/20 transform transition-all duration-300 max-h-[90vh] overflow-y-auto">
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-600/5 to-purple-600/5 rounded-2xl"></div>
             <div className="relative">
               <div className="flex items-center space-x-3 mb-6">
@@ -721,20 +773,20 @@ export const ProjectsPage = ({ user, onLogout }) => {
                 </div>
               </div>
               
-                <div className="flex justify-end space-x-3 mt-6">
+                <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-6">
                   <button
                     type="button"
                     onClick={() => {
                       setShowTaskModal(false);
                       setSelectedProjectId(null);
                     }}
-                    className="px-6 py-3 text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2.5 sm:py-3 text-sm text-gray-600 hover:text-gray-800 font-medium rounded-xl hover:bg-gray-100/50 transition-all duration-200 order-2 sm:order-1"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-indigo-600 hover:to-purple-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg"
+                    className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-indigo-600 hover:to-purple-700 font-medium transform hover:scale-105 transition-all duration-200 shadow-lg text-sm order-1 sm:order-2"
                   >
                     Create Task
                   </button>
