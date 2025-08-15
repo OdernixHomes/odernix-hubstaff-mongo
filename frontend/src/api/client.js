@@ -137,6 +137,9 @@ export const analyticsAPI = {
   getProductivityAnalytics: (period = 'week') => apiClient.get('/analytics/productivity/', {
     params: { period }
   }),
+  getScreenshotStats: (startDate, endDate) => apiClient.get('/analytics/screenshots/stats/', {
+    params: { start_date: startDate, end_date: endDate }
+  }),
   generateCustomReport: (params) => apiClient.get('/analytics/reports/custom/', { params }),
 };
 

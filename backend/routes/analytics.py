@@ -366,6 +366,48 @@ async def get_productivity_analytics(
             detail="Failed to get productivity analytics"
         )
 
+@router.get("/screenshots/stats")
+async def get_screenshot_stats(
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Get screenshot statistics for the user"""
+    try:
+        if not start_date:
+            start_date = (datetime.utcnow() - timedelta(days=30)).date()
+        if not end_date:
+            end_date = datetime.utcnow().date()
+        
+        start_datetime = datetime.combine(start_date, datetime.min.time())
+        end_datetime = datetime.combine(end_date, datetime.max.time())
+        
+        # Count screenshots for current user
+        screenshot_count = await DatabaseOperations.count_documents(
+            "screenshots",
+            {
+                "user_id": current_user.id,
+                "organization_id": current_user.organization_id,
+                "timestamp": {"$gte": start_datetime, "$lte": end_datetime},
+                "is_deleted": {"$ne": True}
+            }
+        )
+        
+        return {
+            "screenshot_count": screenshot_count,
+            "period": {
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat()
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Screenshot stats error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get screenshot statistics"
+        )
+
 @router.get("/reports/custom")
 async def generate_custom_report(
     start_date: date,

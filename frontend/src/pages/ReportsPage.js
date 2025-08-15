@@ -10,6 +10,7 @@ export const ReportsPage = ({ user, onLogout }) => {
   const [dateRange, setDateRange] = useState("this-week");
   const [selectedTeamMember, setSelectedTeamMember] = useState("all");
   const [analyticsData, setAnalyticsData] = useState(null);
+  const [screenshotStats, setScreenshotStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -27,17 +28,30 @@ export const ReportsPage = ({ user, onLogout }) => {
 
   const fetchAnalyticsData = async () => {
     try {
-      const [dashboardResponse, teamResponse, productivityResponse] = await Promise.all([
+      // Check if user has admin access
+      const hasAdminAccess = user.role === 'admin' || user.role === 'manager';
+      
+      // Base API calls for all users
+      const apiCalls = [
         analyticsAPI.getDashboardAnalytics(),
-        analyticsAPI.getTeamAnalytics(),
-        analyticsAPI.getProductivityAnalytics(dateRange === 'this-week' ? 'week' : 'month')
-      ]);
-
+        analyticsAPI.getProductivityAnalytics(dateRange === 'this-week' ? 'week' : 'month'),
+        analyticsAPI.getScreenshotStats()
+      ];
+      
+      // Add team analytics only for admins/managers
+      if (hasAdminAccess) {
+        apiCalls.push(analyticsAPI.getTeamAnalytics());
+      }
+      
+      const responses = await Promise.all(apiCalls);
+      
       setAnalyticsData({
-        dashboard: dashboardResponse.data,
-        team: teamResponse.data,
-        productivity: productivityResponse.data
+        dashboard: responses[0].data,
+        productivity: responses[1].data,
+        team: hasAdminAccess ? responses[3]?.data : null
       });
+      
+      setScreenshotStats(responses[2].data);
     } catch (error) {
       console.error('Failed to fetch analytics data:', error);
     } finally {
@@ -130,7 +144,7 @@ export const ReportsPage = ({ user, onLogout }) => {
                     Filter & Generate Reports
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className={`grid grid-cols-1 ${(user.role === 'admin' || user.role === 'manager') ? 'sm:grid-cols-2 lg:grid-cols-3' : 'sm:grid-cols-2'} gap-4 sm:gap-6`}>
                   <div>
                     <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 sm:mb-3">
                       📅 Date Range
@@ -147,23 +161,25 @@ export const ReportsPage = ({ user, onLogout }) => {
                       <option value="custom">⚙️ Custom Range</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 sm:mb-3">
-                      👥 Team Member
-                    </label>
-                    <select
-                      value={selectedTeamMember}
-                      onChange={(e) => setSelectedTeamMember(e.target.value)}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
-                    >
-                      <option value="all">👥 All Members</option>
-                      {analyticsData?.team?.team_stats?.map((member) => (
-                        <option key={member.user_id} value={member.user_id}>
-                          👤 {member.user_name}
-                        </option>
-                      )) || []}
-                    </select>
-                  </div>
+                  {(user.role === 'admin' || user.role === 'manager') && (
+                    <div>
+                      <label className="block text-xs sm:text-sm font-bold text-gray-700 mb-2 sm:mb-3">
+                        👥 Team Member
+                      </label>
+                      <select
+                        value={selectedTeamMember}
+                        onChange={(e) => setSelectedTeamMember(e.target.value)}
+                        className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-xl bg-white/70 backdrop-blur-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 hover:bg-white/90"
+                      >
+                        <option value="all">👥 All Members</option>
+                        {analyticsData?.team?.team_stats?.map((member) => (
+                          <option key={member.user_id} value={member.user_id}>
+                            👤 {member.user_name}
+                          </option>
+                        )) || []}
+                      </select>
+                    </div>
+                  )}
                   <div className="sm:col-span-2 lg:col-span-1 flex items-end">
                     <button 
                       onClick={fetchAnalyticsData}
@@ -209,7 +225,7 @@ export const ReportsPage = ({ user, onLogout }) => {
               />
               <DashboardWidget 
                 title="Screenshots" 
-                value="1,250" 
+                value={screenshotStats?.screenshot_count?.toLocaleString() || '0'} 
                 subtitle="Captured this period" 
                 icon="📸" 
                 color="blue" 
@@ -317,7 +333,7 @@ export const ReportsPage = ({ user, onLogout }) => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/20">
-                        {analyticsData?.team?.team_stats?.map((member, index) => (
+                        {(user.role === 'admin' || user.role === 'manager') && analyticsData?.team?.team_stats?.map((member, index) => (
                           <tr key={member.user_id} className="hover:bg-white/60 transition-colors duration-200">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                               {new Date(Date.now() - index * 86400000).toLocaleDateString()}
@@ -351,8 +367,12 @@ export const ReportsPage = ({ user, onLogout }) => {
                                 <div className="w-16 h-16 bg-gradient-to-r from-gray-200 to-slate-300 rounded-2xl flex items-center justify-center">
                                   <span className="text-2xl">📊</span>
                                 </div>
-                                <p className="text-gray-500 font-medium">No data available</p>
-                                <p className="text-sm text-gray-400">Generate a report to view analytics data</p>
+                                <p className="text-gray-500 font-medium">
+                                  {(user.role === 'admin' || user.role === 'manager') ? 'No data available' : 'Team data access restricted'}
+                                </p>
+                                <p className="text-sm text-gray-400">
+                                  {(user.role === 'admin' || user.role === 'manager') ? 'Generate a report to view analytics data' : 'Contact your administrator for team analytics access'}
+                                </p>
                               </div>
                             </td>
                           </tr>
@@ -363,7 +383,7 @@ export const ReportsPage = ({ user, onLogout }) => {
                   
                   {/* Mobile Card View */}
                   <div className="lg:hidden space-y-4 p-4">
-                    {analyticsData?.team?.team_stats?.length > 0 ? analyticsData.team.team_stats.map((member, index) => (
+                    {(user.role === 'admin' || user.role === 'manager') && analyticsData?.team?.team_stats?.length > 0 ? analyticsData.team.team_stats.map((member, index) => (
                       <div key={member.user_id} className="bg-white/90 rounded-xl p-4 shadow-lg border border-white/20 hover:shadow-xl transition-all duration-200">
                         <div className="flex flex-col space-y-3">
                           <div className="flex items-center justify-between">
@@ -400,8 +420,12 @@ export const ReportsPage = ({ user, onLogout }) => {
                         <div className="w-16 h-16 bg-gradient-to-r from-gray-200 to-slate-300 rounded-2xl flex items-center justify-center">
                           <span className="text-2xl">📊</span>
                         </div>
-                        <p className="text-gray-500 font-medium">No data available</p>
-                        <p className="text-sm text-gray-400 text-center">Generate a report to view analytics data</p>
+                        <p className="text-gray-500 font-medium">
+                          {(user.role === 'admin' || user.role === 'manager') ? 'No data available' : 'Team data access restricted'}
+                        </p>
+                        <p className="text-sm text-gray-400 text-center">
+                          {(user.role === 'admin' || user.role === 'manager') ? 'Generate a report to view analytics data' : 'Contact your administrator for team analytics access'}
+                        </p>
                       </div>
                     )}
                   </div>
