@@ -40,28 +40,48 @@ class EnhancedActivityMonitor {
   }
   
   init() {
-    // Load user settings
-    this.loadSettings();
-    
     // Setup event listeners
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
     window.addEventListener('beforeunload', this.handleBeforeUnload);
     
     // Track URL changes for SPAs
     this.setupUrlTracking();
+    
+    // Load user settings asynchronously (non-blocking)
+    this.loadSettings();
   }
   
   async loadSettings() {
     try {
+      console.log('Loading monitoring settings...');
       const response = await activityAPI.getMonitoringSettings();
       this.settings = { ...this.settings, ...response.data };
+      console.log('Monitoring settings loaded:', this.settings);
     } catch (error) {
-      console.error('Failed to load monitoring settings:', error);
+      // Check if this is a 503 service unavailable error
+      if (error.response?.status === 503) {
+        console.warn('Monitoring service temporarily unavailable (503). Using defaults and will retry later.');
+        console.info('Monitoring endpoints are temporarily disabled for security patches.');
+      } else {
+        console.warn('Failed to load monitoring settings, using defaults:', error);
+      }
+      
+      // Use default settings if loading fails
+      this.settings = {
+        screenshotEnabled: false, // Disable screenshots when backend is unavailable
+        screenshotInterval: 600000, // 10 minutes
+        applicationTracking: true,
+        websiteTracking: true,
+        keystrokeTracking: true
+      };
+      console.log('Using default monitoring settings:', this.settings);
     }
   }
   
   async start(timeEntryId) {
     if (this.isActive) return;
+    
+    console.log('Starting enhanced activity monitor for time entry:', timeEntryId);
     
     this.isActive = true;
     this.currentTimeEntryId = timeEntryId;
@@ -81,15 +101,20 @@ class EnhancedActivityMonitor {
       this.sendActivityUpdate();
     }, 30000);
     
-    // Start screenshot capture if enabled
-    if (this.settings.screenshotEnabled) {
-      this.startScreenshotCapture();
-    }
+    // Wait a moment for settings to load, then start screenshot capture
+    setTimeout(() => {
+      if (this.settings.screenshotEnabled) {
+        console.log('Starting screenshot capture...');
+        this.startScreenshotCapture();
+      } else {
+        console.log('Screenshot capture disabled in settings');
+      }
+    }, 2000);
     
     // Track current application/website
     this.trackCurrentContext();
     
-    console.log('Enhanced activity monitoring started');
+    console.log('Enhanced activity monitoring started successfully');
   }
   
   stop() {
@@ -238,20 +263,40 @@ class EnhancedActivityMonitor {
       this.lastActivityUpdate = now;
       
     } catch (error) {
-      console.error('Failed to send activity update:', error);
-      console.error('Error details:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
+      if (error.response?.status === 503) {
+        console.warn('Activity monitoring temporarily unavailable (503). Data will be queued for later.');
+        // Don't reset counters so data accumulates for when service is restored
+      } else {
+        console.error('Failed to send activity update:', error);
+        console.error('Error details:', {
+          status: error.response?.status,
+          data: error.response?.data,
+          message: error.message
+        });
+        
+        // Reset counters even on error to prevent infinite accumulation
+        this.mouseEvents = 0;
+        this.keyboardEvents = 0;
+        this.lastActivityUpdate = now;
+      }
     }
   }
   
   async startScreenshotCapture() {
-    if (!this.settings.screenshotEnabled || !this.currentTimeEntryId) return;
+    if (!this.settings.screenshotEnabled || !this.currentTimeEntryId) {
+      console.log('Screenshot capture not started:', {
+        screenshotEnabled: this.settings.screenshotEnabled,
+        hasTimeEntryId: !!this.currentTimeEntryId
+      });
+      return;
+    }
     
-    // Take initial screenshot
-    await this.captureScreenshot();
+    console.log(`Starting screenshot capture with ${this.settings.screenshotInterval / 60000} minute intervals`);
+    
+    // Take initial screenshot after a short delay
+    setTimeout(() => {
+      this.captureScreenshot();
+    }, 5000);
     
     // Set up periodic screenshot capture
     this.screenshotInterval = setInterval(() => {
