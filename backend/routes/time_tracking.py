@@ -713,9 +713,22 @@ async def get_daily_report(
                 logger.error(f"Error processing project data for entry {entry.get('id', 'unknown')}: {project_error}")
                 continue
         
-        # Calculate activity level and screenshots count (placeholder values for now)
+        # Calculate activity level and real screenshots count
         activity_level = min(100, max(0, total_hours * 10)) if total_hours > 0 else 0
-        screenshots_count = len(entries_data) * 3  # Placeholder calculation
+        
+        # Count actual screenshots for this user on this date
+        start_of_day = datetime.combine(date, datetime.min.time())
+        end_of_day = datetime.combine(date, datetime.max.time())
+        
+        screenshots_count = await DatabaseOperations.count_documents(
+            "screenshots",
+            {
+                "user_id": current_user.id,
+                "organization_id": current_user.organization_id,
+                "timestamp": {"$gte": start_of_day, "$lte": end_of_day},
+                "is_deleted": False
+            }
+        )
         
         response_data = {
             "date": date.isoformat(),

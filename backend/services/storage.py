@@ -6,6 +6,8 @@ from typing import Optional, BinaryIO
 from fastapi import UploadFile, HTTPException, status
 from config import settings
 import logging
+import base64
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,8 @@ class StorageService:
                 return await self._save_local(file, subfolder, user_id, unique_filename)
             elif self.storage_type == "aws_s3":
                 return await self._save_s3(file, subfolder, user_id, unique_filename)
+            elif self.storage_type == "cloudinary":
+                return await self._save_cloudinary(file, subfolder, user_id, unique_filename)
             else:
                 raise StorageError(f"Unsupported storage type: {self.storage_type}")
                 
@@ -83,6 +87,63 @@ class StorageService:
         # For now, fall back to local storage
         logger.warning("S3 storage not implemented, falling back to local storage")
         return await self._save_local(file, subfolder, user_id, filename)
+    
+    async def _save_cloudinary(self, file: UploadFile, subfolder: str, user_id: str, filename: str) -> str:
+        """Save file to Cloudinary (FREE cloud storage)"""
+        try:
+            # Read file content
+            content = await file.read()
+            
+            # Prepare folder structure for organization
+            folder = f"{subfolder}/{user_id}" if user_id else subfolder
+            
+            # Create public_id (filename without extension)
+            public_id = f"{folder}/{filename.split('.')[0]}"
+            
+            # Encode file content to base64
+            file_b64 = base64.b64encode(content).decode('utf-8')
+            data_uri = f"data:{file.content_type};base64,{file_b64}"
+            
+            # Cloudinary upload URL
+            upload_url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/image/upload"
+            
+            # Prepare upload data
+            upload_data = {
+                "file": data_uri,
+                "public_id": public_id,
+                "folder": folder,
+                "resource_type": "auto",
+                "api_key": settings.CLOUDINARY_API_KEY
+            }
+            
+            # Generate signature (simplified - in production, use cloudinary SDK)
+            import hashlib
+            import time
+            timestamp = int(time.time())
+            upload_data["timestamp"] = timestamp
+            
+            # Create signature string
+            sig_params = [f"{k}={v}" for k, v in sorted(upload_data.items()) if k != "file" and k != "api_key"]
+            sig_string = "&".join(sig_params) + settings.CLOUDINARY_API_SECRET
+            signature = hashlib.sha1(sig_string.encode()).hexdigest()
+            upload_data["signature"] = signature
+            
+            # Upload to Cloudinary
+            async with httpx.AsyncClient() as client:
+                response = await client.post(upload_url, data=upload_data)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return result["secure_url"]
+                else:
+                    logger.error(f"Cloudinary upload failed: {response.status_code} - {response.text}")
+                    raise StorageError(f"Cloudinary upload failed: {response.status_code}")
+                    
+        except Exception as e:
+            logger.error(f"Cloudinary upload error: {e}")
+            # Fall back to local storage
+            logger.warning("Cloudinary upload failed, falling back to local storage")
+            return await self._save_local(file, subfolder, user_id, filename)
     
     def _get_file_extension(self, filename: Optional[str]) -> str:
         """Extract file extension from filename"""
@@ -141,6 +202,9 @@ class StorageService:
                 # S3 implementation would go here
                 logger.warning("S3 upload not implemented, falling back to local storage")
                 return await self.upload_file(filename, content, content_type)
+                
+            elif self.storage_type == "cloudinary":
+                return await self._upload_cloudinary_direct(filename, content, content_type)
             
         except Exception as e:
             logger.error(f"Error uploading file {filename}: {e}")
@@ -166,6 +230,66 @@ class StorageService:
             return f"https://{settings.S3_BUCKET_NAME}.s3.{settings.AWS_REGION}.amazonaws.com{file_path}"
         
         return file_path
+    
+    async def _upload_cloudinary_direct(self, filename: str, content: bytes, content_type: str) -> str:
+        """Upload content directly to Cloudinary"""
+        try:
+            # Extract folder and user info from filename
+            path_parts = filename.split('/')
+            folder = '/'.join(path_parts[:-1]) if len(path_parts) > 1 else 'screenshots'
+            file_basename = path_parts[-1].split('.')[0]
+            
+            public_id = f"{folder}/{file_basename}"
+            
+            # Encode content to base64
+            file_b64 = base64.b64encode(content).decode('utf-8')
+            data_uri = f"data:{content_type};base64,{file_b64}"
+            
+            # Cloudinary upload URL
+            upload_url = f"https://api.cloudinary.com/v1_1/{settings.CLOUDINARY_CLOUD_NAME}/image/upload"
+            
+            # Prepare upload data
+            import hashlib
+            import time
+            timestamp = int(time.time())
+            
+            upload_data = {
+                "file": data_uri,
+                "public_id": public_id,
+                "folder": folder,
+                "resource_type": "auto",
+                "api_key": settings.CLOUDINARY_API_KEY,
+                "timestamp": timestamp
+            }
+            
+            # Create signature
+            sig_params = [f"{k}={v}" for k, v in sorted(upload_data.items()) if k != "file" and k != "api_key"]
+            sig_string = "&".join(sig_params) + settings.CLOUDINARY_API_SECRET
+            signature = hashlib.sha1(sig_string.encode()).hexdigest()
+            upload_data["signature"] = signature
+            
+            # Upload to Cloudinary
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(upload_url, data=upload_data)
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    logger.info(f"Successfully uploaded to Cloudinary: {result['secure_url']}")
+                    return result["secure_url"]
+                else:
+                    logger.error(f"Cloudinary upload failed: {response.status_code} - {response.text}")
+                    raise StorageError(f"Cloudinary upload failed: {response.status_code}")
+                    
+        except Exception as e:
+            logger.error(f"Cloudinary direct upload error: {e}")
+            # Fall back to local storage for screenshots
+            file_path = self.upload_dir / filename
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(content)
+            
+            return f"/uploads/{filename}"
 
 # Global storage service instance
 storage_service = StorageService()

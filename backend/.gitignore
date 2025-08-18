@@ -1,1 +1,16 @@
 .vercel
+.env
+.env.example
+.env.production
+.env.development
+.env.test
+node_modules
+dist
+coverage
+.vscode
+.DS_Store
+*.log
+*.tmp
+*.bak
+*.swp
+*.pid   

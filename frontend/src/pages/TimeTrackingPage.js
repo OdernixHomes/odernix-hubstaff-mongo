@@ -25,6 +25,7 @@ export const TimeTrackingPage = ({ user, onLogout }) => {
     mouseActivity: 0,
     keyboardActivity: 0
   });
+  const [permissionStatus, setPermissionStatus] = useState(null); // null, 'requesting', 'granted', 'denied'
 
   useEffect(() => {
     fetchData();
@@ -39,7 +40,49 @@ export const TimeTrackingPage = ({ user, onLogout }) => {
   useEffect(() => {
     if (activeEntry) {
       // Start enhanced activity monitoring with time entry ID and user ID
-      enhancedActivityMonitor.start(activeEntry.id, user.id);
+      const startMonitoring = async () => {
+        try {
+          setPermissionStatus('requesting');
+          
+          const result = await enhancedActivityMonitor.start(activeEntry.id, user.id);
+          
+          if (!result.success) {
+            console.error('Failed to start activity monitoring:', result.message);
+            setPermissionStatus('denied');
+            
+            // Stop the timer since monitoring couldn't start
+            try {
+              await timeTrackingAPI.stopEntry(activeEntry.id);
+              setActiveEntry(null);
+              
+              // Show user notification
+              alert(`⚠️ Time Tracking Stopped\n\n${result.message}\n\nTime tracking requires screenshot monitoring to be enabled. Please grant permission to continue tracking time.`);
+            } catch (error) {
+              console.error('Failed to stop time entry:', error);
+            }
+            
+            return;
+          }
+          
+          setPermissionStatus('granted');
+          console.log('✅ Activity monitoring started successfully');
+          
+        } catch (error) {
+          console.error('Error starting activity monitoring:', error);
+          setPermissionStatus('denied');
+          
+          // Stop the timer since monitoring couldn't start
+          try {
+            await timeTrackingAPI.stopEntry(activeEntry.id);
+            setActiveEntry(null);
+            alert('⚠️ Time Tracking Stopped\n\nFailed to start activity monitoring. Please try again.');
+          } catch (stopError) {
+            console.error('Failed to stop time entry:', stopError);
+          }
+        }
+      };
+      
+      startMonitoring();
       
       // Update realtime activity stats every 10 seconds
       const updateInterval = setInterval(() => {
@@ -607,6 +650,29 @@ export const TimeTrackingPage = ({ user, onLogout }) => {
                       <h3 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                         Activity Monitor
                       </h3>
+                      {/* Permission Status Indicator */}
+                      {activeEntry && (
+                        <div className="flex items-center space-x-2 ml-auto">
+                          {permissionStatus === 'requesting' && (
+                            <div className="flex items-center space-x-2 text-yellow-600">
+                              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                              <span className="text-xs font-medium">Requesting permission...</span>
+                            </div>
+                          )}
+                          {permissionStatus === 'granted' && (
+                            <div className="flex items-center space-x-2 text-green-600">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-xs font-medium">Screenshots enabled</span>
+                            </div>
+                          )}
+                          {permissionStatus === 'denied' && (
+                            <div className="flex items-center space-x-2 text-red-600">
+                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                              <span className="text-xs font-medium">Permission denied</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
                       <div className="text-center group/item hover:transform hover:scale-105 transition-all duration-300">

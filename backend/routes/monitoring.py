@@ -181,17 +181,25 @@ async def update_activity(
         
         # Update activity session
         update_data = {
-            "total_keystrokes": {"$inc": activity_data.keystroke_count},
-            "total_mouse_clicks": {"$inc": activity_data.mouse_clicks},
-            "total_mouse_movements": {"$inc": activity_data.mouse_movements},
-            "updated_at": datetime.utcnow()
+            "$inc": {
+                "total_keystrokes": activity_data.keystroke_count,
+                "total_mouse_clicks": activity_data.mouse_clicks,
+                "total_mouse_movements": activity_data.mouse_movements
+            },
+            "$set": {
+                "updated_at": datetime.utcnow()
+            }
         }
         
         if activity_data.active_application:
-            update_data["$addToSet"] = {"applications_used": activity_data.active_application}
+            if "$addToSet" not in update_data:
+                update_data["$addToSet"] = {}
+            update_data["$addToSet"]["applications_used"] = activity_data.active_application
         
         if activity_data.current_url:
-            update_data["$addToSet"] = {"websites_visited": activity_data.current_url}
+            if "$addToSet" not in update_data:
+                update_data["$addToSet"] = {}
+            update_data["$addToSet"]["websites_visited"] = activity_data.current_url
         
         # CRITICAL SECURITY: Update activity session with organization validation
         await DatabaseOperations.update_document(

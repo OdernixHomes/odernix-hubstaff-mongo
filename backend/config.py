@@ -20,7 +20,7 @@ class Settings:
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "")
     
     # File storage settings
-    STORAGE_TYPE: str = os.getenv("STORAGE_TYPE", "local")  # local, aws_s3, gcp, azure
+    STORAGE_TYPE: str = os.getenv("STORAGE_TYPE", "local")  # local, aws_s3, cloudinary
     UPLOAD_DIR: str = os.getenv("UPLOAD_DIR", str(ROOT_DIR / "uploads"))
     MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "10485760"))  # 10MB default
     
@@ -29,6 +29,11 @@ class Settings:
     AWS_SECRET_ACCESS_KEY: str = os.getenv("AWS_SECRET_ACCESS_KEY", "")
     AWS_REGION: str = os.getenv("AWS_REGION", "us-east-1")
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "")
+    
+    # Cloudinary settings (FREE cloud storage)
+    CLOUDINARY_CLOUD_NAME: str = os.getenv("CLOUDINARY_CLOUD_NAME", "")
+    CLOUDINARY_API_KEY: str = os.getenv("CLOUDINARY_API_KEY", "")
+    CLOUDINARY_API_SECRET: str = os.getenv("CLOUDINARY_API_SECRET", "")
     
     # Email settings (for invitations)
     SMTP_HOST: str = os.getenv("SMTP_HOST", "")

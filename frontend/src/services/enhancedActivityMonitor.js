@@ -33,6 +33,7 @@ class EnhancedActivityMonitor {
     // Screenshot permission management
     this.hasScreenshotPermission = false;
     this.screenshotStream = null;
+    this.permissionRequested = false;
     
     // Bind methods
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -84,17 +85,61 @@ class EnhancedActivityMonitor {
   }
   
   async start(timeEntryId, userId = null) {
-    if (this.isActive) return;
+    if (this.isActive) return { success: true, message: 'Already active' };
     
     console.log('Starting enhanced activity monitor for time entry:', timeEntryId, 'user:', userId);
     
-    this.isActive = true;
     this.currentTimeEntryId = timeEntryId;
     this.currentUserId = userId;
     this.mouseEvents = 0;
     this.keyboardEvents = 0;
     this.startTime = Date.now();
     this.lastActivityUpdate = Date.now();
+    
+    // Request screenshot permission first if required
+    if (this.settings.screenshotEnabled) {
+      // Check if we already have an active stream from current session
+      if (this.hasScreenshotPermission && this.screenshotStream && !this.screenshotStream.getTracks().some(track => track.readyState === 'ended')) {
+        console.log('✅ Screenshot permission already active, reusing existing stream');
+        // Ensure screenshot capture is running
+        if (!this.screenshotInterval) {
+          this.startScreenshotCapture();
+        }
+      } else {
+        // Only show the permission dialog once per browser session
+        if (!this.permissionRequested || !this.hasScreenshotPermission) {
+          console.log('⚠️ Screenshot monitoring is required. You will be asked to share your screen once.');
+          try {
+            await this.requestScreenshotPermission();
+            if (!this.hasScreenshotPermission) {
+              console.log('❌ Screenshot permission denied. Cannot start time tracking.');
+              return { 
+                success: false, 
+                message: 'Screenshot permission is required for time tracking. Please grant permission and try again.' 
+              };
+            }
+            console.log('✅ Screenshot permission granted! This permission will be reused for future time tracking sessions.');
+          } catch (error) {
+            console.error('Screenshot permission request failed:', error);
+            return { 
+              success: false, 
+              message: 'Failed to request screenshot permission. Time tracking cannot start.' 
+            };
+          }
+        } else {
+          // Permission was requested before but stream ended
+          console.log('🔄 Re-establishing screenshot stream...');
+          try {
+            await this.requestScreenshotPermission();
+          } catch (error) {
+            console.warn('Failed to re-establish screenshot stream:', error);
+          }
+        }
+      }
+    }
+    
+    // Only set as active after permission is confirmed
+    this.isActive = true;
     
     // Add event listeners
     document.addEventListener('mousemove', this.handleMouseMove, { passive: true });
@@ -107,18 +152,14 @@ class EnhancedActivityMonitor {
       this.sendActivityUpdate();
     }, 30000);
     
-    // Request screenshot permission once at the start
-    if (this.settings.screenshotEnabled) {
-      console.log('Requesting one-time screenshot permission...');
-      this.requestScreenshotPermission();
-    } else {
-      console.log('Screenshot capture disabled in settings');
-    }
-    
     // Track current application/website
     this.trackCurrentContext();
     
-    console.log('Enhanced activity monitoring started successfully');
+    console.log('✅ Enhanced activity monitoring started successfully with screenshot monitoring enabled!');
+    return { 
+      success: true, 
+      message: 'Activity monitoring started successfully with screenshot capture enabled.' 
+    };
   }
   
   stop() {
@@ -294,52 +335,76 @@ class EnhancedActivityMonitor {
   }
   
   async requestScreenshotPermission() {
-    try {
-      console.log('Requesting one-time screen capture permission...');
-      
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-        console.warn('Screen capture not supported in this browser');
-        return;
-      }
-      
-      // Request permission once and keep the stream
-      this.screenshotStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { 
-          mediaSource: 'screen',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: false
-      });
-      
-      this.hasScreenshotPermission = true;
-      console.log('✅ Screenshot permission granted! Will capture screenshots every 10 minutes during work sessions.');
-      
-      // Start screenshot capture schedule
-      this.startScreenshotCapture();
-      
-      // Handle stream end (if user manually stops sharing)
-      this.screenshotStream.getVideoTracks()[0].addEventListener('ended', () => {
-        console.log('User stopped screen sharing');
-        this.hasScreenshotPermission = false;
-        this.screenshotStream = null;
-        if (this.screenshotInterval) {
-          clearInterval(this.screenshotInterval);
-          this.screenshotInterval = null;
-        }
-      });
-      
-    } catch (error) {
-      if (error.name === 'NotAllowedError') {
-        console.warn('❌ User denied screen capture permission. Screenshots will be disabled.');
-        this.settings.screenshotEnabled = false;
-      } else if (error.name === 'NotSupportedError') {
-        console.warn('Screen capture not supported');
-      } else {
-        console.error('Screenshot permission request failed:', error);
-      }
-      this.hasScreenshotPermission = false;
+    // If we already have permission and active stream, don't request again
+    if (this.hasScreenshotPermission && this.screenshotStream) {
+      console.log('🔄 Reusing existing screenshot permission and stream');
+      return Promise.resolve();
     }
+    
+    return new Promise(async (resolve, reject) => {
+      try {
+        console.log('📋 Requesting screen capture permission (this will show a browser dialog)...');
+        
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+          console.warn('Screen capture not supported in this browser');
+          this.hasScreenshotPermission = false;
+          reject(new Error('Screen capture not supported in this browser'));
+          return;
+        }
+        
+        // Request permission once and keep the stream
+        this.screenshotStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { 
+            mediaSource: 'screen',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+        
+        this.hasScreenshotPermission = true;
+        this.permissionRequested = true;
+        console.log('✅ Screenshot permission granted! Stream will be kept alive for future use.');
+        
+        // Start screenshot capture schedule
+        this.startScreenshotCapture();
+        
+        // Handle stream end (if user manually stops sharing)
+        this.screenshotStream.getVideoTracks()[0].addEventListener('ended', () => {
+          console.log('🛑 User stopped screen sharing manually');
+          this.hasScreenshotPermission = false;
+          this.screenshotStream = null;
+          this.permissionRequested = false;
+          if (this.screenshotInterval) {
+            clearInterval(this.screenshotInterval);
+            this.screenshotInterval = null;
+          }
+          
+          // If time tracking is active, we need to stop it
+          if (this.isActive) {
+            console.warn('⚠️ Screen sharing stopped during active time tracking. Activity monitoring will continue but screenshots will be disabled.');
+          }
+        });
+        
+        resolve();
+        
+      } catch (error) {
+        this.hasScreenshotPermission = false;
+        this.permissionRequested = true; // Mark as requested even if failed
+        
+        if (error.name === 'NotAllowedError') {
+          console.warn('❌ User denied screen capture permission. Time tracking cannot continue.');
+          this.settings.screenshotEnabled = false;
+          reject(new Error('User denied screen capture permission'));
+        } else if (error.name === 'NotSupportedError') {
+          console.warn('Screen capture not supported');
+          reject(new Error('Screen capture not supported'));
+        } else {
+          console.error('Screenshot permission request failed:', error);
+          reject(error);
+        }
+      }
+    });
   }
 
   async startScreenshotCapture() {
